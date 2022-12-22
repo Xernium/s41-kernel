@@ -17,10 +17,10 @@
 #include "conn_md_log.h"
 #include "conn_md_dump.h"
 
-struct conn_md_dmp_msg_log *conn_md_dmp_init(void)
+P_CONN_MD_DMP_MSG_LOG conn_md_dmp_init(void)
 {
-	uint32 msg_log_size = sizeof(struct conn_md_dmp_msg_log);
-	struct conn_md_dmp_msg_log *p_msg_log = vmalloc(msg_log_size);
+	uint32 msg_log_size = sizeof(CONN_MD_DMP_MSG_LOG);
+	P_CONN_MD_DMP_MSG_LOG p_msg_log = vmalloc(msg_log_size);
 
 	if (p_msg_log != NULL) {
 		CONN_MD_INFO_FUNC("alloc memory for msg log system done, size:0x%08x\n", msg_log_size);
@@ -34,7 +34,7 @@ struct conn_md_dmp_msg_log *conn_md_dmp_init(void)
 	return p_msg_log;
 }
 
-int conn_md_dmp_deinit(struct conn_md_dmp_msg_log *p_log)
+int conn_md_dmp_deinit(P_CONN_MD_DMP_MSG_LOG p_log)
 {
 	int i_ret = -1;
 
@@ -50,10 +50,10 @@ int conn_md_dmp_deinit(struct conn_md_dmp_msg_log *p_log)
 	return i_ret;
 }
 
-int __conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, struct conn_md_dmp_msg_log *p_msg_log)
+int __conn_md_dmp_in(ipc_ilm_t *p_ilm, CONN_MD_MSG_TYPE msg_type, P_CONN_MD_DMP_MSG_LOG p_msg_log)
 {
 	struct timeval now;
-	struct conn_md_dmp_msg_str *p_msg = NULL;
+	P_CONN_MD_DMP_MSG_STR p_msg = NULL;
 
 	/*get current time */
 	do_gettimeofday(&now);
@@ -68,7 +68,7 @@ int __conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, stru
 	p_msg->type = msg_type;
 
 	/*Log p_ilm */
-	memcpy(&p_msg->ilm, p_ilm, sizeof(struct ipc_ilm));
+	memcpy(&p_msg->ilm, p_ilm, sizeof(ipc_ilm_t));
 
 	/*Log msg length */
 	p_msg->msg_len = p_ilm->local_para_ptr->msg_len;
@@ -92,7 +92,7 @@ int __conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, stru
 	return 0;
 }
 
-int conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, struct conn_md_dmp_msg_log *p_msg_log)
+int conn_md_dmp_in(ipc_ilm_t *p_ilm, CONN_MD_MSG_TYPE msg_type, P_CONN_MD_DMP_MSG_LOG p_msg_log)
 {
 	int i_ret = -1;
 
@@ -107,9 +107,9 @@ int conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, struct
 	return i_ret;
 }
 
-int __conn_md_dmp_msg_filter(struct conn_md_dmp_msg_str *p_msg, uint32 src_id, uint32 dst_id)
+int __conn_md_dmp_msg_filter(P_CONN_MD_DMP_MSG_STR p_msg, uint32 src_id, uint32 dst_id)
 {
-	struct ipc_ilm *p_ilm = &p_msg->ilm;
+	ipc_ilm_t *p_ilm = &p_msg->ilm;
 	int i = 0;
 
 	if (((src_id == 0) || (src_id == p_ilm->src_mod_id)) && ((dst_id == 0) || (dst_id == p_ilm->dest_mod_id))) {
@@ -130,13 +130,13 @@ int __conn_md_dmp_msg_filter(struct conn_md_dmp_msg_str *p_msg, uint32 src_id, u
 	return 0;
 }
 
-int conn_md_dmp_out(struct conn_md_dmp_msg_log *p_msg_log, uint32 src_id, uint32 dst_id)
+int conn_md_dmp_out(P_CONN_MD_DMP_MSG_LOG p_msg_log, uint32 src_id, uint32 dst_id)
 {
 	int i_ret = 0;
 	int size = 0;
 	int in = 0;
 	int out = 0;
-	struct conn_md_dmp_msg_str *p_msg = NULL;
+	P_CONN_MD_DMP_MSG_STR p_msg = NULL;
 
 
 	if (p_msg_log == NULL) {

@@ -117,6 +117,15 @@ struct charger_ops {
 	int (*enable_discharge)(struct charger_device *, bool en);
 	int (*set_boost_current_limit)(struct charger_device *, u32 uA);
 
+	int (*set_usbsw)(struct charger_device *charger_dev, u32 swtch);
+	int (*short_dpdm)(struct charger_device *charger_dev, bool en);
+
+	int (*set_stop_charg)(struct charger_device *, bool en);
+	int (*enable_cfo)(struct charger_device *, bool en);
+
+	/* Ping IC */
+	int (*ping_ic)(struct charger_device *);
+
 	/* charger type detection */
 	int (*enable_chg_type_det)(struct charger_device *, bool en);
 
@@ -196,6 +205,14 @@ extern int charger_dev_reset_eoc_state(struct charger_device *charger_dev);
 
 /* PE */
 extern int charger_dev_send_ta_current_pattern(struct charger_device *charger_dev, bool is_increase);
+
+extern int charger_dev_set_usbsw(struct charger_device *charger_dev, u32 swtch);
+extern int charger_dev_short_dpdm(struct charger_device *charger_dev, bool en);
+
+extern int charger_dev_set_stop_charg(struct charger_device *charger_dev, bool en);
+extern int charger_dev_enable_cfo(struct charger_device *charger_dev, bool en);
+
+extern int charger_dev_ping_ic(struct charger_device *charger_dev);
 
 /* PE 2.0 */
 extern int charger_dev_send_ta20_current_pattern(struct charger_device *charger_dev, u32 uV);

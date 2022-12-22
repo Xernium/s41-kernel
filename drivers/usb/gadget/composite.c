@@ -144,16 +144,11 @@ int config_ep_by_speed(struct usb_gadget *g,
 
 ep_found:
 	/* commit results */
-	_ep->maxpacket = usb_endpoint_maxp(chosen_desc) & 0x7ff;
+	_ep->maxpacket = usb_endpoint_maxp(chosen_desc);
 	_ep->desc = chosen_desc;
 	_ep->comp_desc = NULL;
 	_ep->maxburst = 0;
-	_ep->mult = 1;
-
-	if (g->speed == USB_SPEED_HIGH && (usb_endpoint_xfer_isoc(_ep->desc) ||
-				usb_endpoint_xfer_int(_ep->desc)))
-		_ep->mult = ((usb_endpoint_maxp(_ep->desc) & 0x1800) >> 11) + 1;
-
+	_ep->mult = 0;
 	if (!want_comp_desc)
 		return 0;
 
@@ -170,7 +165,7 @@ ep_found:
 		switch (usb_endpoint_type(_ep->desc)) {
 		case USB_ENDPOINT_XFER_ISOC:
 			/* mult: bits 1:0 of bmAttributes */
-			_ep->mult = (comp_desc->bmAttributes & 0x3) + 1;
+			_ep->mult = comp_desc->bmAttributes & 0x3;
 		case USB_ENDPOINT_XFER_BULK:
 		case USB_ENDPOINT_XFER_INT:
 			_ep->maxburst = comp_desc->bMaxBurst + 1;
@@ -902,7 +897,6 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 		      struct usb_configuration *config)
 {
 	unsigned long flags;
-	struct usb_gadget_string_container *uc, *tmp;
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
@@ -917,11 +911,6 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
 	remove_config(cdev, config);
-
-	list_for_each_entry_safe(uc, tmp, &cdev->gstrings, list) {
-		list_del(&uc->list);
-		kfree(uc);
-	}
 }
 
 /*-------------------------------------------------------------------------*/
@@ -1501,11 +1490,6 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	struct usb_function		*f = NULL;
 	u8				endp;
 	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 5);
-#if 0
-#ifdef CONFIG_USBIF_COMPLIANCE
-	struct usb_otg_descriptor *otg_desc = req->buf;
-#endif
-#endif
 	if (!(ctrl->bRequest == USB_REQ_GET_STATUS
 			|| ctrl->bRequest == USB_REQ_CLEAR_FEATURE
 			|| ctrl->bRequest == USB_REQ_SET_FEATURE))
@@ -1535,17 +1519,6 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		if (ctrl->bRequestType != USB_DIR_IN)
 			goto unknown;
 		switch (w_value >> 8) {
-#if 0
-#ifdef CONFIG_USBIF_COMPLIANCE
-		case USB_DT_OTG:
-			otg_desc->bLength = sizeof(*otg_desc);
-			otg_desc->bDescriptorType = USB_DT_OTG;
-			otg_desc->bmAttributes = USB_OTG_SRP | USB_OTG_HNP;
-			otg_desc->bcdOTG = cpu_to_le16(0x0200);
-			value = min_t(int, w_length, sizeof(struct usb_otg_descriptor));
-			break;
-#endif
-#endif
 		case USB_DT_DEVICE:
 			cdev->desc.bNumConfigurations =
 				count_configs(cdev, USB_DT_DEVICE);
@@ -1553,7 +1526,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				cdev->gadget->ep0->maxpacket;
 			if (gadget_is_superspeed(gadget)) {
 				if (gadget->speed >= USB_SPEED_SUPER) {
-					cdev->desc.bcdUSB = cpu_to_le16(0x0310);
+					cdev->desc.bcdUSB = cpu_to_le16(0x0300);
 					cdev->desc.bMaxPacketSize0 = 9;
 				} else {
 					cdev->desc.bcdUSB = cpu_to_le16(0x0210);
@@ -1652,7 +1625,9 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		INFO(cdev, "[COM]USB_REQ_GET_CONFIGURATION: value=%d\n", value);
 		break;
 
-	/* function drivers must handle get/set altsetting */
+	/* function drivers must handle get/set altsetting; if there's
+	 * no get() method, we know only altsetting zero works.
+	 */
 	case USB_REQ_SET_INTERFACE:
 		if (ctrl->bRequestType != USB_RECIP_INTERFACE)
 			goto unknown;
@@ -1667,13 +1642,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		f = cdev->config->interface[intf];
 		if (!f)
 			break;
-
-		/*
-		 * If there's no get_alt() method, we know only altsetting zero
-		 * works. There is no need to check if set_alt() is not NULL
-		 * as we check this in usb_add_function().
-		 */
-		if (w_value && !f->get_alt)
+		if (w_value && !f->set_alt)
 			break;
 		value = f->set_alt(f, w_index, w_value);
 		if (value == USB_GADGET_DELAYED_STATUS) {
@@ -1711,23 +1680,8 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	 * interface of the function
 	 */
 	case USB_REQ_GET_STATUS:
-		if (gadget_is_otg(gadget) && gadget->hnp_polling_support &&
-						(w_index == OTG_STS_SELECTOR)) {
-			if (ctrl->bRequestType != (USB_DIR_IN |
-							USB_RECIP_DEVICE))
-				goto unknown;
-			*((u8 *)req->buf) = gadget->host_request_flag;
-			value = 1;
-			break;
-		}
-
-		/*
-		 * USB 3.0 additions:
-		 * Function driver should handle get_status request. If such cb
-		 * wasn't supplied we respond with default value = 0
-		 * Note: function driver should supply such cb only for the
-		 * first interface of the function
-		 */
+		if (__ratelimit(&ratelimit))
+			INFO(cdev, "[COM]USB_REQ_GET_STATUS\n");
 		if (!gadget_is_superspeed(gadget))
 			goto unknown;
 		if (ctrl->bRequestType != (USB_DIR_IN | USB_RECIP_INTERFACE))
@@ -2302,6 +2256,7 @@ static const struct usb_gadget_driver composite_driver_template = {
 
 	.suspend	= composite_suspend,
 	.resume		= composite_resume,
+
 	.driver	= {
 		.owner		= THIS_MODULE,
 	},

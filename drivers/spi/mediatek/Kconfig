@@ -1,3 +1,4 @@
+#SPI
 config MTK_SPI
 	tristate "MediaTek SPI controller"
 	#depends on SPI

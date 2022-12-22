@@ -35,10 +35,10 @@
  *Local variable definition
  *=============================================================
  */
+static DEFINE_MUTEX(ts_pmic_timer_lock);
+
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
-static DEFINE_SEMAPHORE(sem_mutex);
-static int isTimerCancelled;
 
 /**
  * If curr_temp >= polling_trip_temp1, use interval
@@ -333,7 +333,6 @@ static ssize_t mtktspmic_write(struct file *file, const char __user *buffer, siz
 		&ptr_mtktspmic_data->trip[9], &ptr_mtktspmic_data->t_type[9], ptr_mtktspmic_data->bind9,
 		&ptr_mtktspmic_data->time_msec) == 32) {
 
-		down(&sem_mutex);
 		mtktspmic_dprintk("[mtktspmic_write] mtktspmic_unregister_thermal\n");
 		mtktspmic_unregister_thermal();
 
@@ -344,7 +343,6 @@ static ssize_t mtktspmic_write(struct file *file, const char __user *buffer, siz
 			#endif
 			mtktspmic_dprintk("[mtktspmic_write] bad argument\n");
 			kfree(ptr_mtktspmic_data);
-			up(&sem_mutex);
 			return -EINVAL;
 		}
 
@@ -392,7 +390,6 @@ static ssize_t mtktspmic_write(struct file *file, const char __user *buffer, siz
 
 		mtktspmic_dprintk("[mtktspmic_write] mtktspmic_register_thermal\n");
 		mtktspmic_register_thermal();
-		up(&sem_mutex);
 		kfree(ptr_mtktspmic_data);
 		return count;
 	}
@@ -406,46 +403,36 @@ static ssize_t mtktspmic_write(struct file *file, const char __user *buffer, siz
 	return -EINVAL;
 }
 
+#if 0
 static void mtkts_pmic_cancel_thermal_timer(void)
 {
 	/* cancel timer */
 	/* pr_debug("mtkts_pmic_cancel_thermal_timer\n"); */
 
 	/* stop thermal framework polling when entering deep idle */
-	if (down_trylock(&sem_mutex))
-		return;
+	if (mutex_trylock(&ts_pmic_timer_lock)) {
+		if (thz_dev)
+			cancel_delayed_work(&(thz_dev->poll_queue));
 
-	if (thz_dev) {
-		cancel_delayed_work(&(thz_dev->poll_queue));
-		isTimerCancelled = 1;
+		mutex_unlock(&ts_pmic_timer_lock);
 	}
-
-	up(&sem_mutex);
 }
-
 
 static void mtkts_pmic_start_thermal_timer(void)
 {
 	/* pr_debug("mtkts_pmic_start_thermal_timer\n"); */
 	/* resume thermal framework polling when leaving deep idle */
+	if (mutex_trylock(&ts_pmic_timer_lock)) {
+		if (thz_dev != NULL && interval != 0)
+			mod_delayed_work(system_freezable_wq, &(thz_dev->poll_queue),
+				round_jiffies(msecs_to_jiffies(1000)));
 
-	if (!isTimerCancelled)
-		return;
-
-	isTimerCancelled = 0;
-
-	if (down_trylock(&sem_mutex))
-		return;
-
-	if (thz_dev != NULL && interval != 0)
-		mod_delayed_work(system_freezable_power_efficient_wq,
-				&(thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(1000)));
-
-	up(&sem_mutex);
+		mutex_unlock(&ts_pmic_timer_lock);
+	}
 }
+#endif
 
-
-static int mtktspmic_register_cooler(void)
+int mtktspmic_register_cooler(void)
 {
 	cl_dev_sysrst = mtk_thermal_cooling_device_register("mtktspmic-sysrst", NULL,
 							    &mtktspmic_cooling_sysrst_ops);
@@ -457,13 +444,15 @@ static int mtktspmic_register_thermal(void)
 	mtktspmic_dprintk("[mtktspmic_register_thermal]\n");
 
 	/* trips : trip 0~2 */
+	mutex_lock(&ts_pmic_timer_lock);
 	thz_dev = mtk_thermal_zone_device_register("mtktspmic", num_trip, NULL,
 						   &mtktspmic_dev_ops, 0, 0, 0, interval * 1000);
+	mutex_unlock(&ts_pmic_timer_lock);
 
 	return 0;
 }
 
-static void mtktspmic_unregister_cooler(void)
+void mtktspmic_unregister_cooler(void)
 {
 	if (cl_dev_sysrst) {
 		mtk_thermal_cooling_device_unregister(cl_dev_sysrst);
@@ -475,10 +464,12 @@ static void mtktspmic_unregister_thermal(void)
 {
 	mtktspmic_dprintk("[mtktspmic_unregister_thermal]\n");
 
+	mutex_lock(&ts_pmic_timer_lock);
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
 		thz_dev = NULL;
 	}
+	mutex_unlock(&ts_pmic_timer_lock);
 }
 
 static int mtktspmic_open(struct inode *inode, struct file *file)
@@ -647,9 +638,9 @@ static int __init mtktspmic_init(void)
 		    proc_create("tzpmic_ate", S_IRUGO | S_IWUSR, mtktspmic_dir,
 				&mtktspmic_ate_fops);
 	}
-
+#if 0
 	mtkTTimer_register("mtktspmic", mtkts_pmic_start_thermal_timer, mtkts_pmic_cancel_thermal_timer);
-
+#endif
 	return 0;
 
 err_unreg:

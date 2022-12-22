@@ -41,7 +41,7 @@ typedef unsigned int (*cam_cal_cmd_func)(struct i2c_client *client, unsigned int
 typedef unsigned int (*cam_cal_check_func)(struct i2c_client *client,
 	cam_cal_cmd_func readCamCalData);
 
-enum CAM_CAL_CMD_TYPE {
+typedef enum {
 	CMD_NONE = 0,
 	CMD_AUTO,
 	CMD_MAIN,
@@ -52,29 +52,30 @@ enum CAM_CAL_CMD_TYPE {
 	CMD_CAT24C16,
 	CMD_GT24C32A,
 	CMD_NUM
-};
+} CAM_CAL_CMD_TYPE;
 
-struct stCAM_CAL_LIST_STRUCT {
+typedef CAM_CAL_CMD_TYPE cam_cal_cmd_type;
+
+typedef struct {
 	unsigned int sensorID;
 	unsigned int slaveID;
-	enum CAM_CAL_CMD_TYPE cmdType;
+	cam_cal_cmd_type cmdType;
 	cam_cal_check_func checkFunc;
-};
+} stCAM_CAL_LIST_STRUCT, *stPCAM_CAL_LIST_STRUCT;
 
-struct stCAM_CAL_FUNC_STRUCT {
-	enum CAM_CAL_CMD_TYPE cmdType;
+typedef struct {
+	cam_cal_cmd_type cmdType;
 	cam_cal_cmd_func readCamCalData;
-};
+} stCAM_CAL_FUNC_STRUCT, *stPCAM_CAL_FUNC_STRUCT;
 
 
-unsigned int cam_cal_get_sensor_list(struct stCAM_CAL_LIST_STRUCT **ppCamcalList);
-unsigned int cam_cal_get_func_list(struct stCAM_CAL_FUNC_STRUCT **ppCamcalFuncList);
+unsigned int cam_cal_get_sensor_list(stCAM_CAL_LIST_STRUCT **ppCamcalList);
+unsigned int cam_cal_get_func_list(stCAM_CAL_FUNC_STRUCT **ppCamcalFuncList);
 unsigned int cam_cal_check_mtk_cid(struct i2c_client *client, cam_cal_cmd_func readCamCalData);
 unsigned int cam_cal_check_double_eeprom(struct i2c_client *client,
 	cam_cal_cmd_func readCamCalData);
 
-/*defined on kd_sensorlist.c*/
-void CAMERA_HW_Get_i2C_BusNum(unsigned int *I2C_Bus_Num);
+extern struct mutex EEPROM_Mutex;
 
 #endif /* __CAM_CAL_LIST_H */
 

@@ -656,7 +656,6 @@ WMT_IC_OPS wmt_ic_ops_mt6628 = {
 	.is_quick_sleep = mt6628_quick_sleep_flag_get,
 	.is_aee_dump_support = mt6628_aee_dump_flag_get,
 	.trigger_stp_assert = NULL,
-	.deep_sleep_ctrl = NULL,
 };
 
 /*******************************************************************************
@@ -1519,12 +1518,8 @@ static INT32 mt6628_crystal_triming_set(VOID)
 			iCrystalTiming += cCrystalTimingOffset;
 		}
 		WMT_DBG_FUNC("iCrystalTiming (0x%x)\n", iCrystalTiming);
-		if (iCrystalTiming > 0x7f)
-			cCrystalTiming = 0x7f;
-		else if (iCrystalTiming < 0)
-			cCrystalTiming = 0;
-		else
-			cCrystalTiming = iCrystalTiming;
+		cCrystalTiming = iCrystalTiming > 0x7f ? 0x7f : iCrystalTiming;
+		cCrystalTiming = iCrystalTiming < 0 ? 0 : iCrystalTiming;
 		WMT_DBG_FUNC("cCrystalTiming (0x%x)\n", cCrystalTiming);
 		/* set_crystal_timing_script */
 		WMT_SET_CRYSTAL_TRIMING_CMD[5] = cCrystalTiming;
@@ -1654,11 +1649,6 @@ static INT32 mt6628_patch_dwn(UINT32 index)
 	/* remove patch header:
 	 * |<-patch body: X Bytes (X=patchSize)--->|
 	 */
-	if (patchSize < sizeof(WMT_PATCH)) {
-		WMT_ERR_FUNC("error patch size\n");
-		iRet = -1;
-		goto done;
-	}
 	patchSize -= sizeof(WMT_PATCH);
 	pbuf += sizeof(WMT_PATCH);
 	patchSizePerFrag = DEFAULT_PATCH_FRAG_SIZE;
@@ -1892,10 +1882,6 @@ static INT32 mt6628_patch_dwn(VOID)
 	/* remove patch header:
 	 * |<-patch body: X Bytes (X=patchSize)--->|
 	 */
-	if (patchSize < sizeof(WMT_PATCH)) {
-		WMT_ERR_FUNC("error patch size\n");
-		return -1;
-	}
 	patchSize -= sizeof(WMT_PATCH);
 	pbuf += sizeof(WMT_PATCH);
 	patchSizePerFrag = DEFAULT_PATCH_FRAG_SIZE;

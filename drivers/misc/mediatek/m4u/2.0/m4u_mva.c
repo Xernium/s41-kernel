@@ -68,10 +68,10 @@ void m4u_mvaGraph_dump_raw(void)
 void m4u_mvaGraph_dump(void)
 {
 	unsigned int addr = 0, size = 0;
-	unsigned short index = 1, nr = 0;
+	short index = 1, nr = 0;
 	int i, max_bit, is_busy;
 	short frag[12] = { 0 };
-	unsigned short nr_free = 0, nr_alloc = 0;
+	short nr_free = 0, nr_alloc = 0;
 	unsigned long irq_flags;
 
 	M4ULOG_HIGH("[M4U_K] mva allocation info dump:====================>\n");
@@ -116,7 +116,7 @@ void m4u_mvaGraph_dump(void)
 void *mva_get_priv_ext(unsigned int mva)
 {
 	void *priv = NULL;
-	unsigned int index;
+	int index;
 	unsigned long irq_flags;
 
 	index = MVAGRAPH_INDEX(mva);
@@ -140,7 +140,7 @@ void *mva_get_priv_ext(unsigned int mva)
 
 int mva_foreach_priv(mva_buf_fn_t *fn, void *data)
 {
-	unsigned short index = 1, nr = 0;
+	short index = 1, nr = 0;
 	unsigned int mva;
 	void *priv;
 	unsigned long irq_flags;
@@ -165,7 +165,7 @@ int mva_foreach_priv(mva_buf_fn_t *fn, void *data)
 
 unsigned int get_first_valid_mva(void)
 {
-	unsigned short index = 1, nr = 0;
+	short index = 1, nr = 0;
 	unsigned int mva;
 	void *priv;
 	unsigned long irq_flags;
@@ -189,7 +189,7 @@ unsigned int get_first_valid_mva(void)
 void *mva_get_priv(unsigned int mva)
 {
 	void *priv = NULL;
-	unsigned int index;
+	int index;
 	unsigned long irq_flags;
 
 	index = MVAGRAPH_INDEX(mva);
@@ -209,9 +209,9 @@ void *mva_get_priv(unsigned int mva)
 
 unsigned int m4u_do_mva_alloc(unsigned long va, unsigned int size, void *priv)
 {
-	unsigned short s, end;
-	unsigned short new_start, new_end;
-	unsigned short nr = 0;
+	short s, end;
+	short new_start, new_end;
+	short nr = 0;
 	unsigned int mvaRegionStart;
 	unsigned long startRequire, endRequire, sizeRequire;
 	unsigned long irq_flags;
@@ -236,9 +236,7 @@ unsigned int m4u_do_mva_alloc(unsigned long va, unsigned int size, void *priv)
 	if (s > MVA_MAX_BLOCK_NR) {
 		spin_unlock_irqrestore(&gMvaGraph_lock, irq_flags);
 		M4UMSG("mva_alloc error: no available MVA region for %d blocks!\n", nr);
-#ifdef M4U_PROFILE
-		mmprofile_log_ex(M4U_MMP_Events[M4U_MMP_M4U_ERROR], MMPROFILE_FLAG_PULSE, size, s);
-#endif
+		MMProfileLogEx(M4U_MMP_Events[M4U_MMP_M4U_ERROR], MMProfileFlagPulse, size, s);
 
 		return 0;
 	}
@@ -273,12 +271,12 @@ unsigned int m4u_do_mva_alloc(unsigned long va, unsigned int size, void *priv)
 
 unsigned int m4u_do_mva_alloc_fix(unsigned long va, unsigned int mva, unsigned int size, void *priv)
 {
-	unsigned short nr = 0;
+	short nr = 0;
 	unsigned int startRequire, endRequire, sizeRequire;
 	unsigned long irq_flags;
-	unsigned short startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
-	unsigned short endIdx;
-	unsigned short region_start, region_end;
+	short startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
+	short endIdx;
+	short region_start, region_end;
 
 	if (size == 0)
 		return 0;
@@ -288,6 +286,7 @@ unsigned int m4u_do_mva_alloc_fix(unsigned long va, unsigned int mva, unsigned i
 	}
 
 	mva = mva | (va & M4U_PAGE_MASK);
+
 	/* ----------------------------------------------------- */
 	/* calculate mva block number */
 	startRequire = mva & (~MVA_BLOCK_ALIGN_MASK);
@@ -346,14 +345,14 @@ out:
 
 unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, unsigned int size, void *priv)
 {
-	unsigned short s = 0, end;
-	unsigned short new_start, new_end;
-	unsigned short nr = 0;
+	short s = 0, end;
+	short new_start, new_end;
+	short nr = 0;
 	unsigned int mvaRegionStart;
 	unsigned long startRequire, endRequire, sizeRequire;
 	unsigned long irq_flags;
-	unsigned short startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
-	unsigned short region_start, region_end, next_region_start = 0;
+	short startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
+	short region_start, region_end, next_region_start = 0;
 
 	if (size == 0)
 		return 0;
@@ -368,13 +367,13 @@ unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, uns
 	nr = (sizeRequire + MVA_BLOCK_ALIGN_MASK) >> MVA_BLOCK_SIZE_ORDER;
 	/* (sizeRequire>>MVA_BLOCK_SIZE_ORDER) + ((sizeRequire&MVA_BLOCK_ALIGN_MASK)!=0); */
 
-	M4ULOG_MID("m4u_do_mva_alloc_start_from mva:0x%x, startIdx=%d, size = %d, nr= %d\n", mva, startIdx, size, nr);
+	M4UMSG("m4u_do_mva_alloc_start_from mva:0x%x, startIdx=%d, size = %d, nr= %d\n", mva, startIdx, size, nr);
 
 	spin_lock_irqsave(&gMvaGraph_lock, irq_flags);
 
 	/* find this region */
-	for (region_start = 1; (region_start < (MVA_MAX_BLOCK_NR + 1));
-		 region_start += (MVA_GET_NR(region_start) & MVA_BLOCK_NR_MASK)) {
+	for (region_start = 1; region_start < (MVA_MAX_BLOCK_NR + 1);
+		region_start += MVA_GET_NR(region_start)) {
 		if ((mvaGraph[region_start] & MVA_BLOCK_NR_MASK) == 0) {
 			m4u_mvaGraph_dump();
 			m4u_aee_print("%s: s=%d, 0x%x\n", __func__, s, mvaGraph[region_start]);
@@ -383,12 +382,6 @@ unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, uns
 			next_region_start = region_start + MVA_GET_NR(region_start);
 			break;
 		}
-	}
-
-	if (region_start > MVA_MAX_BLOCK_NR) {
-		M4UMSG("%s:alloc mva fail,no available MVA for %d blocks\n", __func__, nr);
-		spin_unlock_irqrestore(&gMvaGraph_lock, irq_flags);
-		return 0;
 	}
 
 	region_end = region_start + MVA_GET_NR(region_start) - 1;
@@ -408,7 +401,7 @@ unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, uns
 			M4UMSG("mva is free region_start=%d, s=%d\n", region_start, s);
 	}
 
-	M4ULOG_MID("region_start: %d, region_end= %d, region= %d, next_region_start= %d, search start: %d\n",
+	M4UMSG("region_start: %d, region_end= %d, region= %d, next_region_start= %d, search start: %d\n",
 		region_start, region_end, MVA_GET_NR(region_start), next_region_start, s);
 
 	/* ----------------------------------------------- */
@@ -432,6 +425,7 @@ unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, uns
 
 		return 0;
 	}
+
 	/* ----------------------------------------------- */
 	if (s == 0) {
 		/* same as m4u_do_mva_alloc_fix */
@@ -496,26 +490,17 @@ unsigned int m4u_do_mva_alloc_start_from(unsigned long va, unsigned int mva, uns
 	return (mvaRegionStart << MVA_BLOCK_SIZE_ORDER) + mva_pageOffset(va);
 }
 
-
 #define RightWrong(x) ((x) ? "correct" : "error")
 int m4u_do_mva_free(unsigned int mva, unsigned int size)
 {
-	unsigned short startIdx;
-	unsigned short nr;
-	unsigned short endIdx;
+	short startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
+	short nr = mvaGraph[startIdx] & MVA_BLOCK_NR_MASK;
+	short endIdx = startIdx + nr - 1;
 	unsigned int startRequire, endRequire, sizeRequire;
-	unsigned short nrRequire;
+	short nrRequire;
 	unsigned long irq_flags;
 
 	spin_lock_irqsave(&gMvaGraph_lock, irq_flags);
-	startIdx = mva >> MVA_BLOCK_SIZE_ORDER;
-	if (startIdx == 0 || startIdx > 4095) {
-		spin_unlock_irqrestore(&gMvaGraph_lock, irq_flags);
-		return -1;
-	}
-	nr = mvaGraph[startIdx] & MVA_BLOCK_NR_MASK;
-	endIdx = startIdx + nr - 1;
-
 	/* -------------------------------- */
 	/* check the input arguments */
 	/* right condition: startIdx is not NULL && region is busy && right module && right size */

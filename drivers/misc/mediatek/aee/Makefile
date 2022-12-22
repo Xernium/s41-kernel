@@ -16,7 +16,6 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/$(MTK_PLATFORM)/videox/
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mrdump
 
-subdir-ccflags-y += -I$(srctree)/drivers/watchdog/mediatek/include/
 
 ifdef CONFIG_MTK_ION
 subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion

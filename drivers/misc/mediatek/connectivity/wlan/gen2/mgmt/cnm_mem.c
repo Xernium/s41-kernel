@@ -99,7 +99,6 @@ P_MSDU_INFO_T cnmMgtPktAlloc(P_ADAPTER_T prAdapter, UINT_32 u4Length)
 			prMsduInfo->ucCID = 0xff;
 			prMsduInfo->u4InqueTime = 0;
 			prMsduInfo->ucPacketType = TX_PACKET_NUM;
-			prMsduInfo->u4DbgTxPktStatusIndex = 0xffff;
 		}
 	} else {
 		P_QUE_T prTxingQue;
@@ -588,10 +587,9 @@ P_STA_RECORD_T cnmGetStaRecByIndex(P_ADAPTER_T prAdapter, UINT_8 ucIndex)
 
 	prStaRec = (ucIndex < CFG_STA_REC_NUM) ? &prAdapter->arStaRec[ucIndex] : NULL;
 
-	if (prStaRec && prStaRec->fgIsInUse == FALSE) {
-		DBGLOG(CNM, INFO, "[%pM] prStaRec->fgIsInUse = FALSE!\n", prStaRec->aucMacAddr);
+	if (prStaRec && prStaRec->fgIsInUse == FALSE)
 		prStaRec = NULL;
-	}
+
 	return prStaRec;
 }
 

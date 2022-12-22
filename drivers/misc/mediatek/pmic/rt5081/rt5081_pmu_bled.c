@@ -24,7 +24,7 @@
 #include "inc/rt5081_pmu_bled.h"
 
 struct rt5081_pmu_bled_data {
-	struct rt_fled_dev base;
+	rt_fled_dev_t base;
 	struct rt5081_pmu_chip *chip;
 	struct device *dev;
 	struct platform_device *rt_flash_dev;
@@ -42,11 +42,11 @@ static uint8_t bled_init_data[] = {
 	0x8c, /* RT5081_PMU_REG_BLFLTO */
 	0x80, /* RT5081_PMU_REG_BLTORCTRL */
 	0xff, /* RT5081_PMU_REG_BLSTRBCTRL */
-	0x00, /* RT5081_PMU_REG_BLAVG */
+	0x08, /* RT5081_PMU_REG_BLAVG */
 };
 
 static int rt5081_bled_fled_set_mode(struct rt_fled_dev *fled_dev,
-	enum flashlight_mode mode)
+	flashlight_mode_t mode)
 {
 	struct rt5081_pmu_bled_data *bled_data =
 			(struct rt5081_pmu_bled_data *)fled_dev;
@@ -241,35 +241,25 @@ static void rt5081_bled_fled_shutdown(struct rt_fled_dev *fled_dev)
 }
 
 static struct rt_fled_hal rt5081_bledfl_hal = {
-	.rt_hal_fled_set_mode = rt5081_bled_fled_set_mode,
-	.rt_hal_fled_get_mode = rt5081_bled_fled_get_mode,
-	.rt_hal_fled_strobe = rt5081_bled_fled_strobe,
-	.rt_hal_fled_torch_current_list = rt5081_bled_fled_torch_current_list,
-	.rt_hal_fled_strobe_current_list = rt5081_bled_fled_strobe_current_list,
-	.rt_hal_fled_timeout_level_list = rt5081_bled_fled_timeout_level_list,
-	.rt_hal_fled_lv_protection_list = rt5081_bled_fled_lv_protection_list,
-	.rt_hal_fled_strobe_timeout_list = rt5081_bled_fled_strobe_timeout_list,
-	.rt_hal_fled_set_torch_current_sel =
-					rt5081_bled_fled_set_torch_current_sel,
-	.rt_hal_fled_set_strobe_current_sel =
-					rt5081_bled_fled_set_strobe_current_sel,
-	.rt_hal_fled_set_timeout_level_sel =
-					rt5081_bled_fled_set_timeout_level_sel,
-	.rt_hal_fled_set_lv_protection_sel =
-					rt5081_bled_fled_set_lv_protection_sel,
-	.rt_hal_fled_set_strobe_timeout_sel =
-					rt5081_bled_fled_set_strobe_timeout_sel,
-	.rt_hal_fled_get_torch_current_sel =
-					rt5081_bled_fled_get_torch_current_sel,
-	.rt_hal_fled_get_strobe_current_sel =
-					rt5081_bled_fled_get_strobe_current_sel,
-	.rt_hal_fled_get_timeout_level_sel =
-					rt5081_bled_fled_get_timeout_level_sel,
-	.rt_hal_fled_get_lv_protection_sel =
-					rt5081_bled_fled_get_lv_protection_sel,
-	.rt_hal_fled_get_strobe_timeout_sel =
-					rt5081_bled_fled_get_strobe_timeout_sel,
-	.rt_hal_fled_shutdown = rt5081_bled_fled_shutdown,
+	.fled_set_mode = rt5081_bled_fled_set_mode,
+	.fled_get_mode = rt5081_bled_fled_get_mode,
+	.fled_strobe = rt5081_bled_fled_strobe,
+	.fled_troch_current_list = rt5081_bled_fled_torch_current_list,
+	.fled_strobe_current_list = rt5081_bled_fled_strobe_current_list,
+	.fled_timeout_level_list = rt5081_bled_fled_timeout_level_list,
+	.fled_lv_protection_list = rt5081_bled_fled_lv_protection_list,
+	.fled_strobe_timeout_list = rt5081_bled_fled_strobe_timeout_list,
+	.fled_set_torch_current_sel = rt5081_bled_fled_set_torch_current_sel,
+	.fled_set_strobe_current_sel = rt5081_bled_fled_set_strobe_current_sel,
+	.fled_set_timeout_level_sel = rt5081_bled_fled_set_timeout_level_sel,
+	.fled_set_lv_protection_sel = rt5081_bled_fled_set_lv_protection_sel,
+	.fled_set_strobe_timeout_sel = rt5081_bled_fled_set_strobe_timeout_sel,
+	.fled_get_torch_current_sel = rt5081_bled_fled_get_torch_current_sel,
+	.fled_get_strobe_current_sel = rt5081_bled_fled_get_strobe_current_sel,
+	.fled_get_timeout_level_sel = rt5081_bled_fled_get_timeout_level_sel,
+	.fled_get_lv_protection_sel = rt5081_bled_fled_get_lv_protection_sel,
+	.fled_get_strobe_timeout_sel = rt5081_bled_fled_get_strobe_timeout_sel,
+	.fled_shutdown = rt5081_bled_fled_shutdown,
 };
 
 static const struct flashlight_properties rt5081_bledfl_props = {
@@ -570,13 +560,4 @@ module_platform_driver(rt5081_pmu_bled);
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("cy_huang <cy_huang@richtek.com>");
 MODULE_DESCRIPTION("Richtek RT5081 PMU Bled");
-MODULE_VERSION("1.0.1_MTK");
-
-/*
- * Version Note
- * 1.0.1_MTK
- * (1) Remove typedef
- *
- * 1.0.0_MTK
- * (1) Initial Release
- */
+MODULE_VERSION("1.0.0_G");

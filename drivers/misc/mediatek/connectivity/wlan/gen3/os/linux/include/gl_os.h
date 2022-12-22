@@ -156,7 +156,9 @@
 #include "typedef.h"
 #include "queue.h"
 #include "gl_kal.h"
-
+#if CFG_CHIP_RESET_SUPPORT
+#include "gl_rst.h"
+#endif
 #include "hif.h"
 
 #if CFG_SUPPORT_TDLS
@@ -222,10 +224,7 @@ extern BOOLEAN fgIsBusAccessFailed;
 
 #define WAKE_LOCK_RX_TIMEOUT                            300	/* ms */
 #define WAKE_LOCK_THREAD_WAKEUP_TIMEOUT                 50	/* ms */
-/*Full2Partial*/
-#define UPDATE_FULL_TO_PARTIAL_SCAN_TIMEOUT             60	/* s */
 
-#define FULL_SCAN_MAX_CHANNEL_NUM						40
 /*******************************************************************************
 *                             D A T A   T Y P E S
 ********************************************************************************
@@ -553,15 +552,6 @@ struct _GLUE_INFO_T {
 	UINT_32 u4Register;
 	UINT_32 u4RegValue;
 	PUINT_32 prRegValue;
-
-	UINT_64 u8HifIntTime;
-
-	/*Full2Partial*/
-	OS_SYSTIME u4LastFullScanTime;
-	/*full scan or partial scan*/
-	UINT_8 ucTrScanType;
-	UINT_8 ucChannelNum[FULL_SCAN_MAX_CHANNEL_NUM];
-	PUINT_8	puFullScan2PartialChannel;
 };
 
 typedef irqreturn_t(*PFN_WLANISR) (int irq, void *dev_id, struct pt_regs *regs);
@@ -659,30 +649,21 @@ typedef struct _NETDEV_PRIVATE_GLUE_INFO {
 } NETDEV_PRIVATE_GLUE_INFO, *P_NETDEV_PRIVATE_GLUE_INFO;
 
 typedef struct _PACKET_PRIVATE_DATA {
-	/* tx/rx both use cb */
-	QUE_ENTRY_T rQueEntry;  /* 16byte total:16 */
+	QUE_ENTRY_T rQueEntry;
+	UINT_16 u2Flag;
+	UINT_8 ucTid;
+	UINT_8 ucBssIdx;
 
-	UINT_8 ucBssIdx;	/* 1byte */
-	/* only rx use cb */
-	BOOLEAN fgIsIndependentPkt; /* 1byte */
-	/* only tx use cb */
-	UINT_8 ucTid;		/* 1byte */
-	UINT_8 ucHeaderLen;	/* 1byte */
-	UINT_8 ucProfilingFlag;	/* 1byte */
-	UINT_8 ucSeqNo;		/* 1byte */
-	UINT_16 u2Flag;		/* 2byte total:24 */
+	UINT_8 ucHeaderLen;
+	UINT_16 u2FrameLen;
 
-	UINT_16 u2IpId;		/* 2byte */
-	UINT_16 u2FrameLen;	/* 2byte */
-	OS_SYSTIME rArrivalTime;/* 4byte total:32 */
-
-	UINT_64 u8ArriveTime;	/* 8byte total:40 */
+	UINT_8 ucProfilingFlag;
+	OS_SYSTIME rArrivalTime;
+	UINT_16 u2IpId;
+	/* package seq no for debug */
+	UINT_8 ucSeqNo;
+	BOOLEAN fgIsIndependentPkt;
 } PACKET_PRIVATE_DATA, *P_PACKET_PRIVATE_DATA;
-
-typedef struct _PACKET_PRIVATE_RX_DATA {
-	UINT_64 u8IntTime;	/* 8byte */
-	UINT_64 u8RxTime;	/* 8byte */
-} PACKET_PRIVATE_RX_DATA, *P_PACKET_PRIVATE_RX_DATA;
 
 /*******************************************************************************
 *                            P U B L I C   D A T A
@@ -820,28 +801,6 @@ typedef struct _PACKET_PRIVATE_RX_DATA {
 	(GLUE_GET_PKT_PRIVATE_DATA(_p)->fgIsIndependentPkt)
 #define GLUE_SET_INDEPENDENT_PKT(_p, _fgIsIndePkt) \
 	(GLUE_GET_PKT_PRIVATE_DATA(_p)->fgIsIndependentPkt = _fgIsIndePkt)
-
-#define GLUE_SET_PKT_XTIME(_p, _rSysTime) \
-	(GLUE_GET_PKT_PRIVATE_DATA(_p)->u8ArriveTime = (UINT_64)(_rSysTime))
-
-#define GLUE_GET_PKT_XTIME(_p)    \
-	(GLUE_GET_PKT_PRIVATE_DATA(_p)->u8ArriveTime)
-
-#define GLUE_GET_PKT_PRIVATE_RX_DATA(_p) \
-	((P_PACKET_PRIVATE_RX_DATA)(&(((struct sk_buff *)(_p))->cb[24])))
-
-#define GLUE_RX_SET_PKT_INT_TIME(_p, _rTime) \
-	(GLUE_GET_PKT_PRIVATE_RX_DATA(_p)->u8IntTime = (UINT_64)(_rTime))
-
-#define GLUE_RX_GET_PKT_INT_TIME(_p) \
-	(GLUE_GET_PKT_PRIVATE_RX_DATA(_p)->u8IntTime)
-
-#define GLUE_RX_SET_PKT_RX_TIME(_p, _rTime) \
-	(GLUE_GET_PKT_PRIVATE_RX_DATA(_p)->u8RxTime = (UINT_64)(_rTime))
-
-#define GLUE_RX_GET_PKT_RX_TIME(_p) \
-	(GLUE_GET_PKT_PRIVATE_RX_DATA(_p)->u8RxTime)
-
 #define GLUE_INC_REF_CNT(_refCount)     atomic_inc((atomic_t *)&(_refCount))
 #define GLUE_DEC_REF_CNT(_refCount)     atomic_dec((atomic_t *)&(_refCount))
 #define GLUE_GET_REF_CNT(_refCount)     atomic_read((atomic_t *)&(_refCount))
@@ -902,7 +861,9 @@ extern void wlanUnregisterNotifier(void);
 
 
 typedef int (*set_p2p_mode) (struct net_device *netdev, PARAM_CUSTOM_P2P_SET_STRUCT_T p2pmode);
+typedef void (*set_dbg_level) (unsigned char modules[DBG_MODULE_NUM]);
 extern void register_set_p2p_mode_handler(set_p2p_mode handler);
+extern void register_set_dbg_level_handler(set_dbg_level handler);
 
 #if CFG_ENABLE_EARLY_SUSPEND
 extern int glRegisterEarlySuspend(struct early_suspend *prDesc,

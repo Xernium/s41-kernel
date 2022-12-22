@@ -128,20 +128,7 @@ static const struct parse_data wmtcfg_fields[] = {
 	CHAR(pwr_on_on_slot),
 	CHAR(co_clock_flag),
 
-	CHAR(disable_deep_sleep_cfg),
-
 	INT(sdio_driving_cfg),
-
-	SHORT(coex_wmt_wifi_path),
-
-	CHAR(coex_wmt_ext_elna_gain_p1_support),
-	INT(coex_wmt_ext_elna_gain_p1_D0),
-	INT(coex_wmt_ext_elna_gain_p1_D1),
-	INT(coex_wmt_ext_elna_gain_p1_D2),
-	INT(coex_wmt_ext_elna_gain_p1_D3),
-
-	CHAR(bt_tssi_from_wifi),
-	SHORT(bt_tssi_target),
 
 };
 
@@ -309,7 +296,7 @@ static INT32 wmt_conf_parse(P_DEV_WMT pWmtDev, const PINT8 pInBuf, UINT32 size)
 	INT32 i = 0;
 	PINT8 pa = NULL;
 
-	pBuf = osal_malloc(size+1);
+	pBuf = osal_malloc(size);
 	if (!pBuf)
 		return -1;
 
@@ -447,6 +434,8 @@ INT32 wmt_conf_read_file(VOID)
 	if (chip_type == WMT_CHIP_TYPE_SOC) {
 		osal_memset(&gDevWmt.cWmtcfgName[0], 0, osal_sizeof(gDevWmt.cWmtcfgName));
 
+		osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT_PREFIX,
+		 osal_sizeof(CUST_CFG_WMT_PREFIX));
 		osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT_SOC, osal_sizeof(CUST_CFG_WMT_SOC));
 	}
 
@@ -457,9 +446,9 @@ INT32 wmt_conf_read_file(VOID)
 	}
 	WMT_DBG_FUNC("WMT config file:%s\n", &(gDevWmt.cWmtcfgName[0]));
 	if (0 ==
-	    wmt_dev_patch_get(&gDevWmt.cWmtcfgName[0], (osal_firmware **) &gDevWmt.pWmtCfg)) {
+	    wmt_dev_patch_get(&gDevWmt.cWmtcfgName[0], (osal_firmware **) &gDevWmt.pWmtCfg, 0)) {
 		/*get full name patch success */
-		WMT_DBG_FUNC("get full file name(%s) buf(0x%p) size(%zu)\n",
+		WMT_INFO_FUNC("get full file name(%s) buf(0x%p) size(%zu)\n",
 			      &gDevWmt.cWmtcfgName[0], gDevWmt.pWmtCfg->data,
 			      gDevWmt.pWmtCfg->size);
 		if (0 ==

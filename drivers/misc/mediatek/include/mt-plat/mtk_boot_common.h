@@ -29,6 +29,7 @@ enum boot_mode_t {
 	LOW_POWER_OFF_CHARGING_BOOT = 9,
 #endif
 	DONGLE_BOOT = 10,
+	POWERBANK = 11,
 	UNKNOWN_BOOT
 };
 

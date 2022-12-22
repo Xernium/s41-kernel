@@ -21,7 +21,7 @@
 		if (m)		    \
 			seq_printf(m, x);	\
 		else		    \
-			pr_info(x);	    \
+			pr_err(x);	    \
 	} while (0)
 
 #define MT_DEBUG_ENTRY(name) \

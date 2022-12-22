@@ -145,8 +145,11 @@ void reset_watchpoint(void)
 	int j;
 	int i;
 	unsigned int args;
+#ifdef CONFIG_ARCH_MT6580
+	int offset = 2;
+#else
 	int offset = 4;
-
+#endif
 	for_each_online_cpu(j) {
 		args = cs_cpu_read(wp_tracer.debug_regs[j], EDSCR);
 		pr_debug("[MTK WP] Reset flow cpu %d, EDSCR 0x%x\n", j, args);
@@ -212,8 +215,11 @@ int add_hw_watchpoint(struct wp_event *wp_event)
 	int ret, i, j;
 	unsigned long flags;
 	unsigned int ctl;
+#ifdef CONFIG_ARCH_MT6580
+	int offset = 2;
+#else
 	int offset = 4;
-
+#endif
 	if (!wp_event)
 		return -EINVAL;
 
@@ -284,8 +290,11 @@ int del_hw_watchpoint(struct wp_event *wp_event)
 {
 	unsigned long flags;
 	int i, j;
+#ifdef CONFIG_ARCH_MT6580
+	int offset = 2;
+#else
 	int offset = 4;
-
+#endif
 	if (!wp_event)
 		return -EINVAL;
 
@@ -330,7 +339,12 @@ static int watchpoint_handler(unsigned long addr, unsigned int esr, struct pt_re
  * and WVRs in both aarch32 and aarch64 mode, we have no choices
  * but referring to Chip name to configure the offset.
  */
+
+#ifdef CONFIG_ARCH_MT6580
+	int offset = 2;
+#else
 	int offset = 4;
+#endif
 	/* Notes
 	 * wfar is the watched data address which is accessed . and it is from FAR_EL1
 	 */

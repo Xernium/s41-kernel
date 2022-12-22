@@ -13,7 +13,6 @@
  * GNU General Public License for more details.
  *
  */
-#define DEBUG 1
 
 #include "kpd.h"
 #include <linux/wakelock.h>
@@ -21,14 +20,9 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/clk.h>
-#include <linux/debugfs.h>
 
 #define KPD_NAME	"mtk-kpd"
 #define MTK_KP_WAKESOURCE	/* this is for auto set wake up source */
-
-static struct dentry *kpd_droot;
-static struct dentry *kpd_dklog;
-int kpd_klog_en;
 
 void __iomem *kp_base;
 static unsigned int kp_irqnr;
@@ -38,6 +32,16 @@ static int kpd_show_hw_keycode = 1;
 static int kpd_show_register = 1;
 unsigned long call_status;
 struct wake_lock kpd_suspend_lock;	/* For suspend usage */
+
+/* CEi HW Key */
+static int prog_key_eint_state;
+static int prog_key_irq;
+static int home_key_eint_state;
+static int home_key_irq;
+static int back_key_eint_state;
+static int back_key_irq;
+static int recent_app_key_eint_state;
+static int recent_app_key_irq;
 
 /*for kpd_memory_setting() function*/
 static u16 kpd_keymap[KPD_NUM_KEYS];
@@ -82,14 +86,11 @@ static const struct of_device_id kpd_of_match[] = {
 	{.compatible = "mediatek,mt6757-keypad"},
 	{.compatible = "mediatek,mt8173-keypad"},
 	{.compatible = "mediatek,mt6797-keypad"},
-	{.compatible = "mediatek,mt6799-keypad"},
 	{.compatible = "mediatek,mt8163-keypad"},
 	{.compatible = "mediatek,mt8127-keypad"},
 	{.compatible = "mediatek,mt2701-keypad"},
 	{.compatible = "mediatek,mt7623-keypad"},
 	{.compatible = "mediatek,elbrus-keypad"},
-	{.compatible = "mediatek,mt8167-keypad"},
-	{.compatible = "mediatek,kp"},
 	{},
 };
 
@@ -446,6 +447,165 @@ static irqreturn_t kpd_irq_handler(int irq, void *dev_id)
 	tasklet_schedule(&kpd_keymap_tasklet);
 	return IRQ_HANDLED;
 }
+/*********************************************************************/
+static irqreturn_t prog_key_eint_handler(int irq, void *data)
+{
+	/* bool pressed; */
+	if (prog_key_eint_state == 0) {
+		irq_set_irq_type(prog_key_irq, IRQ_TYPE_LEVEL_HIGH);
+		prog_key_eint_state = 1;
+	} else {
+		irq_set_irq_type(prog_key_irq, IRQ_TYPE_LEVEL_LOW);
+		prog_key_eint_state = 0;
+	}
+	input_report_key(kpd_input_dev, KEY_PTT,
+		prog_key_eint_state);
+	input_sync(kpd_input_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t home_key_eint_handler(int irq, void *data)
+{
+	/* bool pressed; */
+
+	if (home_key_eint_state == 0) {
+		irq_set_irq_type(home_key_irq, IRQ_TYPE_LEVEL_HIGH);
+		home_key_eint_state = 1;
+	} else {
+		irq_set_irq_type(home_key_irq, IRQ_TYPE_LEVEL_LOW);
+		home_key_eint_state = 0;
+	}
+	input_report_key(kpd_input_dev, KEY_HOME,
+		home_key_eint_state);
+	input_sync(kpd_input_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t back_key_eint_handler(int irq, void *data)
+{
+	/* bool pressed; */
+
+	if (back_key_eint_state == 0) {
+		irq_set_irq_type(back_key_irq, IRQ_TYPE_LEVEL_HIGH);
+		back_key_eint_state = 1;
+	} else {
+		irq_set_irq_type(back_key_irq, IRQ_TYPE_LEVEL_LOW);
+		back_key_eint_state = 0;
+	}
+	input_report_key(kpd_input_dev, KEY_BACK,
+		back_key_eint_state);
+	input_sync(kpd_input_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t recent_app_key_eint_handler(int irq, void *data)
+{
+	/* bool pressed; */
+
+	if (recent_app_key_eint_state == 0) {
+		irq_set_irq_type(recent_app_key_irq, IRQ_TYPE_LEVEL_HIGH);
+		recent_app_key_eint_state = 1;
+	} else {
+		irq_set_irq_type(recent_app_key_irq, IRQ_TYPE_LEVEL_LOW);
+		recent_app_key_eint_state = 0;
+	}
+	input_report_key(kpd_input_dev, KEY_APPSELECT,
+		recent_app_key_eint_state);
+	input_sync(kpd_input_dev);
+
+	return IRQ_HANDLED;
+}
+
+void mt_cei_eint_register(void)
+{
+	int ints[2] = {0, 0};
+	int ret;
+	struct device_node *node;
+
+	/* register EINT handler for PROG_KEY key */
+	node = of_find_compatible_node(NULL, NULL,
+		"mediatek, prog_key-eint");
+	if (!node)
+		kpd_print("can't find compatible node\n");
+	else {
+		of_property_read_u32_array(node, "debounce",
+			ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		prog_key_irq = irq_of_parse_and_map(node, 0);
+		ret = request_irq(prog_key_irq,
+				  prog_key_eint_handler,
+				  IRQF_TRIGGER_NONE,
+				  "prog_key-eint", NULL);
+		if (ret > 0)
+			kpd_print("EINT IRQ LINE NOT AVAILABLE\n");
+		/* add program key irq to wakeup source */
+		enable_irq_wake(prog_key_irq);
+	}
+
+	/* register EINT handler for HOME_KEY key */
+	node = of_find_compatible_node(NULL, NULL,
+		"mediatek, home_key-eint");
+	if (!node)
+		kpd_print("can't find compatible node\n");
+	else {
+		of_property_read_u32_array(node, "debounce",
+			ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		home_key_irq = irq_of_parse_and_map(node, 0);
+		ret = request_irq(home_key_irq,
+				  home_key_eint_handler,
+				  IRQF_TRIGGER_NONE,
+				  "home_key-eint", NULL);
+		if (ret > 0)
+			kpd_print("EINT IRQ LINE NOT AVAILABLE\n");
+		/* add home key irq to wakeup source */
+		enable_irq_wake(home_key_irq);
+	}
+
+	/* register EINT handler for BACK_KEY key */
+	node = of_find_compatible_node(NULL, NULL,
+		"mediatek, back_key-eint");
+	if (!node)
+		kpd_print("can't find compatible node\n");
+	else {
+		of_property_read_u32_array(node, "debounce",
+			ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		back_key_irq = irq_of_parse_and_map(node, 0);
+		ret = request_irq(back_key_irq,
+				  back_key_eint_handler,
+				  IRQF_TRIGGER_NONE,
+				  "back_key-eint", NULL);
+		if (ret > 0)
+			kpd_print("EINT IRQ LINE NOT AVAILABLE\n");
+	}
+
+	/* register EINT handler for RECENT_APP_KEY key */
+	node = of_find_compatible_node(NULL, NULL,
+		"mediatek, recent_app_key-eint");
+	if (!node)
+		kpd_print("can't find compatible node\n");
+	else {
+		of_property_read_u32_array(node, "debounce",
+			ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		recent_app_key_irq = irq_of_parse_and_map(node, 0);
+		ret = request_irq(recent_app_key_irq,
+				  recent_app_key_eint_handler,
+				  IRQF_TRIGGER_NONE,
+				  "recent_app_key-eint", NULL);
+		if (ret > 0)
+			kpd_print("EINT IRQ LINE NOT AVAILABLE\n");
+	}
+}
+/*********************************************************************/
 
 /*********************************************************************/
 
@@ -767,7 +927,6 @@ static int kpd_open(struct input_dev *dev)
 void kpd_get_dts_info(struct device_node *node)
 {
 	int ret;
-
 	of_property_read_u32(node, "mediatek,kpd-key-debounce", &kpd_dts_data.kpd_key_debounce);
 	of_property_read_u32(node, "mediatek,kpd-sw-pwrkey", &kpd_dts_data.kpd_sw_pwrkey);
 	of_property_read_u32(node, "mediatek,kpd-hw-pwrkey", &kpd_dts_data.kpd_hw_pwrkey);
@@ -801,7 +960,7 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 	int err = 0;
 	struct clk *kpd_clk = NULL;
 
-	call_status = 0;
+	call_status = 2;
 
 	kpd_info("Keypad probe start!!!\n");
 
@@ -887,6 +1046,12 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 #ifdef CONFIG_MTK_MRDUMP_KEY
 		__set_bit(KEY_RESTART, kpd_input_dev->keybit);
 #endif
+	/* CEI HW Key */
+	__set_bit(KEY_PTT, kpd_input_dev->keybit);
+	__set_bit(KEY_HOME, kpd_input_dev->keybit);
+	__set_bit(KEY_BACK, kpd_input_dev->keybit);
+	__set_bit(KEY_APPSELECT, kpd_input_dev->keybit);
+
 	kpd_input_dev->dev.parent = &pdev->dev;
 	r = input_register_device(kpd_input_dev);
 	if (r) {
@@ -919,8 +1084,9 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 /* This func use as mrdump now, if powerky use kpd eint it need to open another API */
 	mt_eint_register();
 #endif
-
-#ifdef CONFIG_KPD_ACCESS_PMIC_REGMAP
+	/* CEI HW Key */
+	mt_cei_eint_register();
+#ifdef CONIFG_KPD_ACCESS_PMIC_REGMAP
 	/*kpd_hal access pmic registers via regmap interface*/
 	err = kpd_init_pmic_regmap(pdev);
 	if (err)
@@ -950,6 +1116,8 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 /* should never be called */
 static int kpd_pdrv_remove(struct platform_device *pdev)
 {
+	free_irq(home_key_irq, pdev);
+	free_irq(prog_key_irq, pdev);
 	return 0;
 }
 
@@ -957,6 +1125,10 @@ static int kpd_pdrv_remove(struct platform_device *pdev)
 static int kpd_pdrv_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	kpd_suspend = true;
+	if (device_may_wakeup(&pdev->dev)) {
+		enable_irq_wake(home_key_irq);
+		enable_irq_wake(prog_key_irq);
+	}
 #ifdef MTK_KP_WAKESOURCE
 	if (call_status == 2) {
 		kpd_print("kpd_early_suspend wake up source enable!! (%d)\n", kpd_suspend);
@@ -972,6 +1144,10 @@ static int kpd_pdrv_suspend(struct platform_device *pdev, pm_message_t state)
 static int kpd_pdrv_resume(struct platform_device *pdev)
 {
 	kpd_suspend = false;
+	if (device_may_wakeup(&pdev->dev)) {
+		disable_irq_wake(home_key_irq);
+		disable_irq_wake(prog_key_irq);
+	}
 #ifdef MTK_KP_WAKESOURCE
 	if (call_status == 2) {
 		kpd_print("kpd_early_suspend wake up source enable!! (%d)\n", kpd_suspend);
@@ -1052,19 +1228,6 @@ static int __init kpd_mod_init(void)
 	register_sb_handler(&kpd_sb_handler_desc);
 #endif
 #endif
-
-#ifdef CONFIG_MTK_ENG_BUILD
-	kpd_klog_en = 1;
-#else
-	kpd_klog_en = 0;
-#endif
-
-	kpd_droot = debugfs_create_dir("keypad", NULL);
-
-	if (IS_ERR_OR_NULL(kpd_droot))
-		return 0;
-
-	kpd_dklog = debugfs_create_u32("debug", 0600, kpd_droot, &kpd_klog_en);
 
 	return 0;
 }

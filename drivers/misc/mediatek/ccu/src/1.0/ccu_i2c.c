@@ -190,7 +190,6 @@ int ccu_i2c_frame_reset(void)
 
 	i2c_writew(I2C_FIFO_ADDR_CLR, i2c, OFFSET_FIFO_ADDR_CLR);
 	i2c_writew(I2C_HS_NACKERR | I2C_ACKERR | I2C_TRANSAC_COMP, i2c, OFFSET_INTR_MASK);
-	/*call mb to make sure i2c setting written*/
 	mb();
 	/*--todo:remove dump log on production*/
 	/*ccu_i2c_dump_info(i2c);*/
@@ -296,7 +295,7 @@ int ccu_i2c_buf_mode_en(int enable)
 	int ret = 0;
 	struct i2c_client *pClient = NULL;
 
-	LOG_DBG_MUST("i2c_buf_mode_en %d\n", enable);
+	LOG_DBG("i2c_buf_mode_en %d\n", enable);
 
 	pClient = getCcuI2cClient();
 
@@ -305,16 +304,12 @@ int ccu_i2c_buf_mode_en(int enable)
 		return -1;
 
 	if (enable) {
-		if (ccu_i2c_enabled == MFALSE) {
-			ret = hw_trig_i2c_enable(pClient->adapter);
-			ccu_i2c_enabled = MTRUE;
-			LOG_DBG_MUST("hw_trig_i2c_enable done.\n");
-		}
+		ret = hw_trig_i2c_enable(pClient->adapter);
+		ccu_i2c_enabled = MTRUE;
 	} else {
 		if (ccu_i2c_enabled == MTRUE) {
 			ret = hw_trig_i2c_disable(pClient->adapter);
 			ccu_i2c_enabled = MFALSE;
-			LOG_DBG_MUST("hw_trig_i2c_disable done.\n");
 		}
 	}
 	return ret;

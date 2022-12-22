@@ -69,7 +69,6 @@ typedef enum _ENUM_STP_BTM_OPID_T {
 #if CFG_WMT_LTE_COEX_HANDLING
 	STP_OPID_BTM_WMT_LTE_COEX = 0x9,
 #endif
-	STP_OPID_BTM_ASSERT_TIMEOUT = 0xa,
 	STP_OPID_BTM_EXIT,
 	STP_OPID_BTM_NUM
 } ENUM_STP_BTM_OPID_T, *P_ENUM_STP_BTM_OPID_T;
@@ -89,10 +88,7 @@ typedef struct mtk_stp_btm {
 	INT32 gDumplogflag;
 
 	/*wmt_notify */
-	INT32 (*wmt_notify)(MTKSTP_BTM_WMT_OP_T);
-
-	OSAL_TIMER trigger_assert_timer;
-	UINT32 timeout;
+	 INT32 (*wmt_notify)(MTKSTP_BTM_WMT_OP_T);
 } MTKSTP_BTM_T;
 
 
@@ -115,7 +111,6 @@ typedef struct mtk_stp_btm {
 INT32 stp_btm_notify_wmt_rst_wq(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_notify_stp_retry_wq(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_notify_coredump_timeout_wq(MTKSTP_BTM_T *stp_btm);
-INT32 stp_btm_notify_assert_timeout_wq(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_notify_wmt_dmp_wq(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_deinit(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_reset_btm_wq(MTKSTP_BTM_T *stp_btm);
@@ -132,9 +127,6 @@ MTK_WCN_BOOL is_btif_rxd_be_blocked(void);
 #endif
 
 INT32 wmt_btm_trigger_reset(VOID);
-INT32 stp_btm_init_trigger_assert_timer(MTKSTP_BTM_T *stp_btm);
-INT32 stp_btm_start_trigger_assert_timer(MTKSTP_BTM_T *stp_btm);
-INT32 stp_btm_stop_trigger_assert_timer(MTKSTP_BTM_T *stp_btm);
 INT32 stp_btm_set_current_op(MTKSTP_BTM_T *stp_btm, P_OSAL_OP pOp);
 P_OSAL_OP stp_btm_get_current_op(MTKSTP_BTM_T *stp_btm);
 

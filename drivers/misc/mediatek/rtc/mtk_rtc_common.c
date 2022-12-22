@@ -267,7 +267,7 @@ bool rtc_low_power_detected(void)
 }
 EXPORT_SYMBOL(rtc_low_power_detected);
 
-void rtc_gpio_enable_32k(enum rtc_gpio_user_t user)
+void rtc_gpio_enable_32k(rtc_gpio_user_t user)
 {
 	unsigned long flags;
 
@@ -282,7 +282,7 @@ void rtc_gpio_enable_32k(enum rtc_gpio_user_t user)
 }
 EXPORT_SYMBOL(rtc_gpio_enable_32k);
 
-void rtc_gpio_disable_32k(enum rtc_gpio_user_t user)
+void rtc_gpio_disable_32k(rtc_gpio_user_t user)
 {
 	unsigned long flags;
 
@@ -390,6 +390,17 @@ void rtc_mark_fast(void)
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
+void rtc_mark_powerbank(void)
+{
+	unsigned long flags;
+
+	rtc_xinfo("rtc_mark_powerbank\n");
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_FAC_RESET, 0x02);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+
+}
+
 u16 rtc_rdwr_uart_bits(u16 *val)
 {
 	u16 ret = 0;
@@ -405,7 +416,6 @@ u16 rtc_rdwr_uart_bits(u16 *val)
 void rtc_bbpu_power_down(void)
 {
 	unsigned long flags;
-#ifdef CONFIG_MTK_SMART_BATTERY
 	unsigned char exist;
 	bool charger_status;
 
@@ -415,11 +425,8 @@ void rtc_bbpu_power_down(void)
 	else
 		charger_status = false;
 	rtc_xinfo("charger_status = %d\n", charger_status);
-#endif
 	spin_lock_irqsave(&rtc_lock, flags);
-#ifdef CONFIG_MTK_SMART_BATTERY
 	hal_rtc_bbpu_pwdn(charger_status);
-#endif
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -427,9 +434,7 @@ void mt_power_off(void)
 {
 #if !defined(CONFIG_POWER_EXT)
 	int count = 0;
-#ifdef CONFIG_MTK_SMART_BATTERY
 	unsigned char exist;
-#endif
 #endif
 
 	rtc_xinfo("mt_power_off\n");
@@ -482,14 +487,13 @@ static void rtc_handler(void)
 	bool pwron_alm = false, isLowPowerIrq = false, pwron_alarm = false;
 	struct rtc_time nowtm;
 	struct rtc_time tm;
-	unsigned long flags;
 
 	rtc_xinfo("rtc_tasklet_handler start\n");
 
-	spin_lock_irqsave(&rtc_lock, flags);
+	spin_lock(&rtc_lock);
 	isLowPowerIrq = hal_rtc_is_lp_irq();
 	if (isLowPowerIrq) {
-		spin_unlock_irqrestore(&rtc_lock, flags);
+		spin_unlock(&rtc_lock);
 		return;
 	}
 #if RTC_RELPWR_WHEN_XRST
@@ -511,22 +515,13 @@ static void rtc_handler(void)
 #if defined(CONFIG_MTK_KERNEL_POWER_OFF_CHARGING)
 			if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT
 			    || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
-				do {
-					now_time += 1;
-					rtc_time_to_tm(now_time, &tm);
-					tm.tm_year -= RTC_MIN_YEAR_OFFSET;
-					tm.tm_mon += 1;
-					hal_rtc_set_pwron_alarm_time(&tm);
-					hal_rtc_set_alarm(&tm);
-					hal_rtc_is_pwron_alarm(&nowtm, &tm);
-					nowtm.tm_year += RTC_MIN_YEAR;
-					tm.tm_year += RTC_MIN_YEAR;
-					now_time = mktime(nowtm.tm_year, nowtm.tm_mon, nowtm.tm_mday,
-						nowtm.tm_hour, nowtm.tm_min, nowtm.tm_sec);
-					time = mktime(tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour,
-						tm.tm_min, tm.tm_sec);
-				} while (time <= now_time);
-				spin_unlock_irqrestore(&rtc_lock, flags);
+				time += 1;
+				rtc_time_to_tm(time, &tm);
+				tm.tm_year -= RTC_MIN_YEAR_OFFSET;
+				tm.tm_mon += 1;
+				/* tm.tm_sec += 1; */
+				hal_rtc_set_alarm(&tm);
+				spin_unlock(&rtc_lock);
 				arch_reset(0, "kpoc");
 			} else {
 				hal_rtc_save_pwron_alarm();
@@ -537,14 +532,16 @@ static void rtc_handler(void)
 			pwron_alm = true;
 #endif
 		} else if (now_time < time) {	/* set power-on alarm */
-			time -= 1;
-			rtc_time_to_tm(time, &tm);
-			tm.tm_year -= RTC_MIN_YEAR_OFFSET;
-			tm.tm_mon += 1;
+			if (tm.tm_sec == 0) {
+				tm.tm_sec = 59;
+				tm.tm_min -= 1;
+			} else {
+				tm.tm_sec -= 1;
+			}
 			hal_rtc_set_alarm(&tm);
 		}
 	}
-	spin_unlock_irqrestore(&rtc_lock, flags);
+	spin_unlock(&rtc_lock);
 
 	if (rtc != NULL)
 		rtc_update_irq(rtc, 1, RTC_IRQF | RTC_AF);
@@ -782,9 +779,12 @@ static int rtc_pdrv_probe(struct platform_device *pdev)
 		rtc_xerror("register rtc device failed (%ld)\n", PTR_ERR(rtc));
 		return PTR_ERR(rtc);
 	}
-
+#ifdef PMIC_REGISTER_INTERRUPT_ENABLE
+#ifdef CONFIG_MTK_PMIC
 	pmic_register_interrupt_callback(RTC_INTERRUPT_NUM, rtc_irq_handler);
 	pmic_enable_interrupt(RTC_INTERRUPT_NUM, 1, "RTC");
+#endif
+#endif
 
 	return 0;
 }

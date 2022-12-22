@@ -27,49 +27,17 @@
 #include <linux/spinlock.h>
 #include <mt-plat/mtk_battery.h>
 
-/* PD */
-#include <tcpm.h>
-
-
 struct charger_manager;
 #include "mtk_pe_intf.h"
 #include "mtk_pe20_intf.h"
 #include "mtk_pe30_intf.h"
-#include "mtk_pdc_intf.h"
 
-#define CHARGING_INTERVAL 10
-#define CHARGING_FULL_INTERVAL 20
-
-#define CHRLOG_ERROR_LEVEL   1
-#define CHRLOG_DEBUG_LEVEL   2
-
-extern int chr_get_debug_level(void);
-
-#define chr_err(fmt, args...)   \
-do {									\
-	if (chr_get_debug_level() >= CHRLOG_ERROR_LEVEL) {			\
-		pr_notice(fmt, ##args); \
-	}								   \
-} while (0)
-
-#define chr_info(fmt, args...)   \
-do {									\
-	if (chr_get_debug_level() >= CHRLOG_ERROR_LEVEL) {		\
-		pr_notice_ratelimited(fmt, ##args); \
-	}								   \
-} while (0)
-
-#define chr_debug(fmt, args...)   \
-do {									\
-	if (chr_get_debug_level() >= CHRLOG_DEBUG_LEVEL) {		\
-		pr_notice(fmt, ##args); \
-	}								   \
-} while (0)
-
-#ifdef MTK_CHARGER_EXP
 extern int charger_get_debug_level(void);
 extern void charger_log(const char *fmt, ...);
 extern void charger_log_flash(const char *fmt, ...);
+#define CHRLOG_ERROR_LEVEL   1
+#define CHRLOG_DEBUG_LEVEL   2
+
 
 #define chr_err(fmt, args...)   \
 		do {									\
@@ -98,7 +66,7 @@ extern void charger_log_flash(const char *fmt, ...);
 				charger_log(fmt, ##args); \
 			}								   \
 		} while (0)
-#endif
+
 
 /* charger_algorithm notify charger_dev */
 enum {
@@ -116,7 +84,6 @@ enum {
 	CHARGER_DEV_NOTIFY_SAFETY_TIMEOUT,
 };
 
-
 /*
 *Software Jeita
 *T0:-10
@@ -125,29 +92,28 @@ enum {
 *T3:45
 *T4:50
 */
-enum sw_jeita_state_enum {
+typedef enum {
 	TEMP_BELOW_T0 = 0,
 	TEMP_T0_TO_T1,
 	TEMP_T1_TO_T2,
 	TEMP_T2_TO_T3,
 	TEMP_T3_TO_T4,
 	TEMP_ABOVE_T4
-};
+} sw_jeita_state_enum;
 
 struct sw_jeita_data {
 	int sm;
-	int pre_sm;
 	int cv;
 	bool charging;
 	bool error_recovery_flag;
 };
 
 /* battery thermal protection */
-enum bat_temp_state_enum {
+typedef enum {
 	BAT_TEMP_LOW = 0,
 	BAT_TEMP_NORMAL,
 	BAT_TEMP_HIGH
-};
+} bat_temp_state_enum;
 
 struct battery_thermal_protection_data {
 	int sm;
@@ -173,7 +139,6 @@ struct charger_custom_data {
 	int apple_1_0a_charger_current;
 	int apple_2_1a_charger_current;
 	int ta_ac_charger_current;
-	int pd_charger_current;
 
 	/* sw jeita */
 	int jeita_temp_above_t4_cv_voltage;
@@ -208,6 +173,7 @@ struct charger_custom_data {
 	int ta_ac_7v_input_current;
 	bool ta_12v_support;
 	bool ta_9v_support;
+
 
 	/* pe2.0 */
 	int pe20_ichg_level_threshold;	/* ma */
@@ -349,13 +315,9 @@ struct charger_manager {
 	struct mtk_pe30 pe3;
 	struct charger_device *dc_chg;
 
-	/* pd */
-	struct mtk_pdc pdc;
-
-
 	/* thread related */
 	struct hrtimer charger_kthread_timer;
-	struct gtimer charger_kthread_fgtimer;
+	struct fgtimer charger_kthread_fgtimer;
 
 	struct wake_lock charger_wakelock;
 	struct mutex charger_lock;
@@ -364,9 +326,6 @@ struct charger_manager {
 	bool charger_thread_timeout;
 	wait_queue_head_t  wait_que;
 	bool charger_thread_polling;
-
-	/* kpoc */
-	atomic_t enable_kpoc_shdn;
 };
 
 /* charger related module interface */

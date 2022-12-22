@@ -14,6 +14,9 @@
 #ifndef __MTK_UART_H__
 #define __MTK_UART_H__
 
+#ifndef CONFIG_OF
+#include <mach/mt_reg_base.h>
+#endif
 #include <mt-plat/sync_write.h>
 #include "platform_uart.h"
 
@@ -88,9 +91,11 @@ struct mtk_uart_setting {
 	int tx_trig;
 	int rx_trig;
 	unsigned long uart_base;
-
+#ifdef CONFIG_OF
 	unsigned long uart_phys_base;
+
 	unsigned long irq_flags;
+#endif
 
 #if !defined(CONFIG_MTK_LEGACY)
 	struct clk *clk_uart_main;
@@ -242,7 +247,6 @@ unsigned int mtk_uart_pdn_enable(char *port, int enable);
 extern void update_history_byte(char is_tx, int nport, unsigned char byte);
 extern void update_history_time(char is_tx, int nport);
 extern void update_history_bulk(char is_tx, int nport, unsigned char *chars, int count);
-extern struct mtk_uart mtk_uarts[UART_NR];
 
 #ifdef CONFIG_FIQ_DEBUGGER
 extern struct resource fiq_resource[];

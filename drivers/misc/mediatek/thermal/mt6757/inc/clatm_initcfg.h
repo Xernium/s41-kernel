@@ -22,7 +22,7 @@
 #define CLATM_INIT_CFG_0_THETA_RISE								(2)
 #define CLATM_INIT_CFG_0_THETA_FALL								(8)
 #define CLATM_INIT_CFG_0_MIN_BUDGET_CHG							(1)
-#define CLATM_INIT_CFG_0_MIN_CPU_PWR							(400)
+#define CLATM_INIT_CFG_0_MIN_CPU_PWR							(300)
 #define CLATM_INIT_CFG_0_MAX_CPU_PWR							(3960)
 #define CLATM_INIT_CFG_0_MIN_GPU_PWR							(800)
 #define CLATM_INIT_CFG_0_MAX_GPU_PWR							(2000)
@@ -33,7 +33,7 @@
 #define CLATM_INIT_CFG_1_THETA_RISE								(2)
 #define CLATM_INIT_CFG_1_THETA_FALL								(8)
 #define CLATM_INIT_CFG_1_MIN_BUDGET_CHG							(1)
-#define CLATM_INIT_CFG_1_MIN_CPU_PWR							(400)
+#define CLATM_INIT_CFG_1_MIN_CPU_PWR							(300)
 #define CLATM_INIT_CFG_1_MAX_CPU_PWR							(3000)
 #define CLATM_INIT_CFG_1_MIN_GPU_PWR							(800)
 #define CLATM_INIT_CFG_1_MAX_GPU_PWR							(2000)
@@ -59,6 +59,6 @@
 #define CLATM_INIT_CFG_PHPB_GPU_TT								(80)
 #define CLATM_INIT_CFG_PHPB_GPU_TP								(80)
 
-#define CLATM_INIT_HRTIMER_POLLING_DELAY						(100)
+#define CLATM_INIT_HRTIMER_POLLING_DELAY						(20)
 
 #endif	/* __CLATM_INITCFG_H__ */

@@ -615,7 +615,7 @@ int mtk_p2p_cfg80211_start_ap(struct wiphy *wiphy, struct net_device *dev, struc
 
 		COPY_SSID(prP2pStartAPMsg->aucSsid, prP2pStartAPMsg->u2SsidLen, settings->ssid, settings->ssid_len);
 
-		prP2pStartAPMsg->ucHiddenSsidType = settings->hidden_ssid;
+		prP2pStartAPMsg->eHiddenSsidType = settings->hidden_ssid;
 
 		prP2pStartAPMsg->fgIsPrivacy = settings->privacy;
 
@@ -804,7 +804,7 @@ int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 			break;
 		}
 
-		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_remain_on_channel, cookie: 0x%llx\n", *cookie);
+		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_remain_on_channel\n");
 
 		prChnlReqMsg->rMsgHdr.eMsgId = MID_MNY_P2P_CHNL_REQ;
 		prChnlReqMsg->u8Cookie = *cookie;
@@ -872,7 +872,7 @@ int mtk_p2p_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 			break;
 		}
 
-		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_cancel_remain_on_channel, cookie: 0x%llx\n", cookie);
+		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_cancel_remain_on_channel\n");
 
 		prMsgChnlAbort->rMsgHdr.eMsgId = MID_MNY_P2P_CHNL_ABORT;
 		prMsgChnlAbort->u8Cookie = cookie;
@@ -976,15 +976,11 @@ int mtk_p2p_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				*cookie);
 
 			/* Indicate mgmt_tx status return. */
-			if (prMgmtFrame != NULL) {
-				if (prMgmtFrame->prPacket != NULL) {
-					kalP2PIndicateMgmtTxStatus(prGlueInfo,
-								   *cookie,
-								   false,
-								   prMgmtFrame->prPacket,
-								   (UINT_32) prMgmtFrame->u2FrameLength);
-				}
-			}
+			kalP2PIndicateMgmtTxStatus(prGlueInfo,
+						   *cookie,
+						   false,
+						   prMgmtFrame->prPacket, (UINT_32) prMgmtFrame->u2FrameLength);
+
 			/*dump mailbox info from FW*/
 			HAL_MCR_RD(prGlueInfo->prAdapter, MCR_D2HRM2R, &u4NextRegValue);
 
@@ -1014,8 +1010,7 @@ int mtk_p2p_cfg80211_change_bss(struct wiphy *wiphy, struct net_device *dev, str
 
 	prGlueInfo = *((P_GLUE_INFO_T *) wiphy_priv(wiphy));
 
-	DBGLOG(P2P, INFO, "--> %s() CTS:%d,ShortPramble:%d\n"
-		, __func__, params->use_cts_prot, params->use_short_preamble);
+	DBGLOG(P2P, INFO, "--> %s()\n", __func__);
 
 	switch (params->use_cts_prot) {
 	case -1:
@@ -1081,6 +1076,8 @@ int mtk_p2p_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev, st
 		else
 			mac = params->mac;
 
+		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_del_station.\n");
+
 		prGlueInfo = *((P_GLUE_INFO_T *) wiphy_priv(wiphy));
 
 		/*
@@ -1099,13 +1096,8 @@ int mtk_p2p_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev, st
 
 		prDisconnectMsg->rMsgHdr.eMsgId = MID_MNY_P2P_CONNECTION_ABORT;
 		COPY_MAC_ADDR(prDisconnectMsg->aucTargetID, mac);
-		if (params->reason_code == 0)
-			prDisconnectMsg->u2ReasonCode = REASON_CODE_DEAUTH_LEAVING_BSS;
-		else
-			prDisconnectMsg->u2ReasonCode = params->reason_code;
+		prDisconnectMsg->u2ReasonCode = REASON_CODE_UNSPECIFIED;
 		prDisconnectMsg->fgSendDeauth = TRUE;
-
-		DBGLOG(P2P, INFO, "mtk_p2p_cfg80211_del_station ReasonCode = %d\n", prDisconnectMsg->u2ReasonCode);
 
 		mboxSendMsg(prGlueInfo->prAdapter, MBOX_ID_0, (P_MSG_HDR_T) prDisconnectMsg, MSG_SEND_METHOD_BUF);
 
@@ -1471,9 +1463,6 @@ int mtk_p2p_cfg80211_testmode_cmd(IN struct wiphy *wiphy, IN struct wireless_dev
 		i4Status = mtk_cfg80211_process_str_cmd(prGlueInfo, (PUINT_8)(prParams + 1),
 				len - sizeof(*prParams));
 		break;
-	case TESTMODE_CMD_ID_HS_CONFIG:
-		i4Status = mtk_p2p_cfg80211_testmode_hotspot_config_cmd(wiphy, data, len);
-		break;
 	default:
 		i4Status = -EINVAL;
 		break;
@@ -1482,41 +1471,6 @@ int mtk_p2p_cfg80211_testmode_cmd(IN struct wiphy *wiphy, IN struct wireless_dev
 	DBGLOG(P2P, TRACE, "prParams->index=%d, status=%d\n", prParams->index, i4Status);
 
 	return i4Status;
-}
-
-int mtk_p2p_cfg80211_testmode_hotspot_config_cmd(IN struct wiphy *wiphy, IN void *data, IN int len)
-{
-	P_GLUE_INFO_T prGlueInfo = NULL;
-	struct NL80211_DRIVER_HOTSPOT_CONFIG_PARAMS *prParams = (struct NL80211_DRIVER_HOTSPOT_CONFIG_PARAMS *) NULL;
-	UINT_32 index;
-	UINT_32 value;
-
-	ASSERT(wiphy);
-
-	prGlueInfo = *((P_GLUE_INFO_T *) wiphy_priv(wiphy));
-
-	if (data && len) {
-		prParams = (struct NL80211_DRIVER_HOTSPOT_CONFIG_PARAMS *) data;
-	} else {
-		DBGLOG(P2P, ERROR, "data is NULL or len is 0\n");
-		return -EINVAL;
-	}
-
-	index = prParams->idx;
-	value = prParams->value;
-
-	DBGLOG(P2P, INFO, "NL80211_ATTR_TESTDATA, idx=%d value=%d\n",
-			    (UINT_32) prParams->idx, (UINT_32) prParams->value);
-
-	switch (index) {
-	case 1:		/* Max Clients */
-		kalP2PSetMaxClients(prGlueInfo, value);
-		break;
-	default:
-		break;
-	}
-
-	return 0;
 }
 
 int mtk_p2p_cfg80211_testmode_p2p_sigma_pre_cmd(IN struct wiphy *wiphy, IN void *data, IN int len)
@@ -1894,7 +1848,7 @@ int mtk_p2p_cfg80211_testmode_get_best_channel(IN struct wiphy *wiphy, IN void *
 	RF_CHANNEL_INFO_T aucChannelList[MAX_2G_BAND_CHN_NUM];
 	UINT_8 ucNumOfChannel, i, ucIdx;
 	UINT_16 u2APNumScore = 0, u2UpThreshold = 0, u2LowThreshold = 0, ucInnerIdx = 0;
-	UINT_32 u4BufLen, u4LteSafeChnBitMask_2G = 0x7FFE;
+	UINT_32 u4BufLen, u4LteSafeChnBitMask_2G = 0;
 	UINT_32 u4AcsChnReport[5];
 
 	P_PARAM_GET_CHN_INFO prGetChnLoad, prQueryLteChn;
@@ -2003,11 +1957,6 @@ int mtk_p2p_cfg80211_testmode_get_best_channel(IN struct wiphy *wiphy, IN void *
 
 		kalMemFree(prQueryLteChn, VIR_MEM_TYPE, sizeof(PARAM_GET_CHN_INFO));
 	}
-
-#if CFG_TC10_FEATURE
-	/* Restrict 2.4G band channel selection range to 1~11 per customer's request */
-	u4LteSafeChnBitMask_2G &= 0x0FFE;
-#endif
 
 	/* 4. Find out the best channel, skip LTE unsafe channels */
 	for (i = 0; i < ucNumOfChannel; i++) {

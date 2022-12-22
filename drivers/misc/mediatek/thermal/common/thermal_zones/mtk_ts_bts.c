@@ -53,7 +53,6 @@ IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata)
 /*=============================================================*/
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
-static DEFINE_SEMAPHORE(sem_mutex);
 
 static unsigned int interval;	/* seconds, 0 : no auto polling */
 static int trip_temp[10] = { 120000, 110000, 100000, 90000, 80000, 70000, 65000, 60000, 55000, 50000 };
@@ -101,6 +100,8 @@ do {                                    \
 pr_debug("[Thermal/TZ/BTS]" fmt, ##args)
 
 
+
+
 /* #define INPUT_PARAM_FROM_USER_AP */
 
 /*
@@ -122,21 +123,31 @@ pr_debug("[Thermal/TZ/BTS]" fmt, ##args)
 *    return sys_open(fname, flag, 0);
 *}
 */
-
-struct BTS_TEMPERATURE {
+typedef struct {
 	__s32 BTS_Temp;
 	__s32 TemperatureR;
-};
+} BTS_TEMPERATURE;
 
-static int g_RAP_pull_up_R = BTS_RAP_PULL_UP_R;
-static int g_TAP_over_critical_low = BTS_TAP_OVER_CRITICAL_LOW;
-static int g_RAP_pull_up_voltage = BTS_RAP_PULL_UP_VOLTAGE;
-static int g_RAP_ntc_table = BTS_RAP_NTC_TABLE;
-static int g_RAP_ADC_channel = BTS_RAP_ADC_CHANNEL;
+#define AUX_IN0_NTC (0)		/* NTC6301 */
+
+#if 1
+static int g_RAP_pull_up_R = 390000;	/* 390K,pull up resister */
+static int g_TAP_over_critical_low = 4251000;	/* base on 100K NTC temp default value -40 deg */
+static int g_RAP_pull_up_voltage = 1800;	/* 1.8V ,pull up voltage */
+static int g_RAP_ntc_table = 6;	/* default is //NTCG104EF104F(100K) */
+static int g_RAP_ADC_channel = AUX_IN0_NTC;	/* default is 0 */
+#else
+static int g_RAP_pull_up_R = 39000;	/* 39K,pull up resister */
+static int g_TAP_over_critical_low = 188500;	/* base on 10K NTC temp default value -40 deg */
+static int g_RAP_pull_up_voltage = 1800;	/* 1.8V ,pull up voltage */
+static int g_RAP_ntc_table = 4;	/* default is AP_NTC_10 */
+static int g_RAP_ADC_channel = AUX_IN1_NTC;	/* default is 0 */
+#endif
+
 static int g_AP_TemperatureR;
 /* BTS_TEMPERATURE BTS_Temperature_Table[] = {0}; */
 
-static struct BTS_TEMPERATURE BTS_Temperature_Table[] = {
+static BTS_TEMPERATURE BTS_Temperature_Table[] = {
 	{0, 0},
 	{0, 0},
 	{0, 0},
@@ -175,7 +186,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table[] = {
 
 
 /* AP_NTC_BL197 */
-static struct BTS_TEMPERATURE BTS_Temperature_Table1[] = {
+BTS_TEMPERATURE BTS_Temperature_Table1[] = {
 	{-40, 74354},		/* FIX_ME */
 	{-35, 74354},		/* FIX_ME */
 	{-30, 74354},		/* FIX_ME */
@@ -213,7 +224,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table1[] = {
 };
 
 /* AP_NTC_TSM_1 */
-static struct BTS_TEMPERATURE BTS_Temperature_Table2[] = {
+BTS_TEMPERATURE BTS_Temperature_Table2[] = {
 	{-40, 70603},		/* FIX_ME */
 	{-35, 70603},		/* FIX_ME */
 	{-30, 70603},		/* FIX_ME */
@@ -251,7 +262,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table2[] = {
 };
 
 /* AP_NTC_10_SEN_1 */
-static struct BTS_TEMPERATURE BTS_Temperature_Table3[] = {
+BTS_TEMPERATURE BTS_Temperature_Table3[] = {
 	{-40, 74354},		/* FIX_ME */
 	{-35, 74354},		/* FIX_ME */
 	{-30, 74354},		/* FIX_ME */
@@ -290,7 +301,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table3[] = {
 
 #if 0
 /* AP_NTC_10 */
-static struct BTS_TEMPERATURE BTS_Temperature_Table4[] = {
+BTS_TEMPERATURE BTS_Temperature_Table4[] = {
 	{-20, 68237},
 	{-15, 53650},
 	{-10, 42506},
@@ -311,7 +322,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table4[] = {
 };
 #else
 /* AP_NTC_10(TSM0A103F34D1RZ) */
-static struct BTS_TEMPERATURE BTS_Temperature_Table4[] = {
+BTS_TEMPERATURE BTS_Temperature_Table4[] = {
 	{-40, 188500},
 	{-35, 144290},
 	{-30, 111330},
@@ -350,7 +361,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table4[] = {
 #endif
 
 /* AP_NTC_47 */
-static struct BTS_TEMPERATURE BTS_Temperature_Table5[] = {
+BTS_TEMPERATURE BTS_Temperature_Table5[] = {
 	{-40, 483954},		/* FIX_ME */
 	{-35, 483954},		/* FIX_ME */
 	{-30, 483954},		/* FIX_ME */
@@ -389,7 +400,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table5[] = {
 
 
 /* NTCG104EF104F(100K) */
-static struct BTS_TEMPERATURE BTS_Temperature_Table6[] = {
+BTS_TEMPERATURE BTS_Temperature_Table6[] = {
 	{-40, 4251000},
 	{-35, 3005000},
 	{-30, 2149000},
@@ -427,7 +438,7 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table6[] = {
 };
 
 /* NCP15WF104F03RC(100K) */
-static struct BTS_TEMPERATURE BTS_Temperature_Table7[] = {
+BTS_TEMPERATURE BTS_Temperature_Table7[] = {
 	{-40, 4397119},
 	{-35, 3088599},
 	{-30, 2197225},
@@ -473,7 +484,7 @@ static __s16 mtkts_bts_thermistor_conver_temp(__s32 Res)
 	__s32 RES1 = 0, RES2 = 0;
 	__s32 TAP_Value = -200, TMP1 = 0, TMP2 = 0;
 
-	asize = (sizeof(BTS_Temperature_Table) / sizeof(struct BTS_TEMPERATURE));
+	asize = (sizeof(BTS_Temperature_Table) / sizeof(BTS_TEMPERATURE));
 	/* mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : asize = %d, Res = %d\n",asize,Res); */
 	if (Res >= BTS_Temperature_Table[0].TemperatureR) {
 		TAP_Value = -40;	/* min */
@@ -599,8 +610,8 @@ int mtkts_bts_get_hw_temp(void)
 	if (tsatm_thermal_get_catm_type() == 2)
 		t_ret2 = wakeup_ta_algo(TA_CATMPLUS_TTJ);
 
-	if (t_ret2 < 0)
-		pr_warn("[Thermal/TZ/BTS]wakeup_ta_algo out of memory\n");
+	if (t_ret2)
+		pr_err("wakeup_ta_algo out of memory\n");
 
 	bts_cur_temp = t_ret;
 
@@ -834,8 +845,6 @@ static ssize_t mtkts_bts_write(struct file *file, const char __user *buffer, siz
 		&ptr_mtktsbts_data->trip[8], &ptr_mtktsbts_data->t_type[8], ptr_mtktsbts_data->bind8,
 		&ptr_mtktsbts_data->trip[9], &ptr_mtktsbts_data->t_type[9], ptr_mtktsbts_data->bind9,
 		&ptr_mtktsbts_data->time_msec) == 32) {
-
-		down(&sem_mutex);
 		mtkts_bts_dprintk("[mtkts_bts_write] mtkts_bts_unregister_thermal\n");
 		mtkts_bts_unregister_thermal();
 
@@ -846,7 +855,6 @@ static ssize_t mtkts_bts_write(struct file *file, const char __user *buffer, siz
 			#endif
 			mtkts_bts_dprintk("[mtkts_bts_write] bad argument\n");
 			kfree(ptr_mtktsbts_data);
-			up(&sem_mutex);
 			return -EINVAL;
 		}
 
@@ -896,7 +904,6 @@ static ssize_t mtkts_bts_write(struct file *file, const char __user *buffer, siz
 		mtkts_bts_dprintk("[mtkts_bts_write] mtkts_bts_register_thermal\n");
 
 		mtkts_bts_register_thermal();
-		up(&sem_mutex);
 		kfree(ptr_mtktsbts_data);
 		/* AP_write_flag=1; */
 		return count;
@@ -912,12 +919,12 @@ static ssize_t mtkts_bts_write(struct file *file, const char __user *buffer, siz
 }
 
 
-void mtkts_bts_copy_table(struct BTS_TEMPERATURE *des, struct BTS_TEMPERATURE *src)
+void mtkts_bts_copy_table(BTS_TEMPERATURE *des, BTS_TEMPERATURE *src)
 {
 	int i = 0;
 	int j = 0;
 
-	j = (sizeof(BTS_Temperature_Table) / sizeof(struct BTS_TEMPERATURE));
+	j = (sizeof(BTS_Temperature_Table) / sizeof(BTS_TEMPERATURE));
 	/* mtkts_bts_dprintk("mtkts_bts_copy_table() : j = %d\n",j); */
 	for (i = 0; i < j; i++)
 		des[i] = src[i];
@@ -966,7 +973,7 @@ void mtkts_bts_prepare_table(int table_num)
 	{
 		int i = 0;
 
-		for (i = 0; i < (sizeof(BTS_Temperature_Table) / sizeof(struct BTS_TEMPERATURE)); i++) {
+		for (i = 0; i < (sizeof(BTS_Temperature_Table) / sizeof(BTS_TEMPERATURE)); i++) {
 			mtkts_bts_dprintk("BTS_Temperature_Table[%d].APteryTemp =%d\n", i,
 					  BTS_Temperature_Table[i].BTS_Temp);
 			mtkts_bts_dprintk("BTS_Temperature_Table[%d].TemperatureR=%d\n", i,
@@ -1127,8 +1134,7 @@ static void mtkts_bts_start_thermal_timer(void)
 	/* resume thermal framework polling when leaving deep idle */
 	/*
 	*if (thz_dev != NULL && interval != 0)
-	*	mod_delayed_work(system_freezable_power_efficient_wq,
-	*			&(thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(3000)));
+	*	mod_delayed_work(system_freezable_wq, &(thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(3000)));
 	*/
 }
 #endif

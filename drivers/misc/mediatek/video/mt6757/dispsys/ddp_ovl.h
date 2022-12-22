@@ -20,13 +20,7 @@
 #define OVL_MAX_WIDTH  (4095)
 #define OVL_MAX_HEIGHT (4095)
 
-#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
-#define TOTAL_OVL_LAYER_NUM	(4+3+1+2)
-#else
-#define TOTAL_OVL_LAYER_NUM	(4+3+2+3)
-#endif
-#define TOTAL_REAL_OVL_LAYER_NUM (4+3+2+3)
-
+#define TOTAL_OVL_LAYER_NUM	(6+3+3) /* Prim total support layer num */
 #define OVL_NUM			(4)
 #define PRIMARY_OVL0_OVL0_2L_CASCADE
 

@@ -1,6 +1,20 @@
-#include <linux/delay.h>
+/*
+* Copyright (C) Onsemi Co.,Ltd. All rights reserved.
+
+* This software is licensed under the terms of the GNU General Public
+* License version 2, as published by the Free Software Foundation, and
+* may be copied, distributed, and modified under those terms.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+#include	<linux/delay.h>
 #include "LC89821x_STMV.h"
 
+#define DEBUG_LOG
 #ifdef DEBUG_LOG
 #include <linux/fs.h>
 #endif
@@ -11,13 +25,13 @@
 #endif
 /* /////////////////////////////////////// */
 
-#define	ABS_STMV(x)	((x) < 0 ? -(x) : (x))
-
 #define		DeviceAddr		0xE4	/* Device address of driver IC */
+
 
 static void RamWriteA(unsigned short addr, unsigned short data)
 {
-	u8 puSendCmd[3] = {(u8)(addr & 0xFF), (u8)(data >> 8), (u8)(data & 0xFF)};
+	/* To call your IIC function here */
+	u8 puSendCmd[3] = { (u8) (addr & 0xFF), (u8) (data >> 8), (u8) (data & 0xFF) };
 
 	s4AF_WriteReg_LC898212XDAF_F(puSendCmd, sizeof(puSendCmd), DeviceAddr);
 
@@ -28,8 +42,9 @@ static void RamWriteA(unsigned short addr, unsigned short data)
 
 static void RamReadA(unsigned short addr, unsigned short *data)
 {
+	/* To call your IIC function here */
 	u8 buf[2];
-	u8 puSendCmd[1] = { (u8)(addr & 0xFF)};
+	u8 puSendCmd[1] = { (u8) (addr & 0xFF) };
 
 	s4AF_ReadReg_LC898212XDAF_F(puSendCmd, sizeof(puSendCmd), buf, 2, DeviceAddr);
 	*data = (buf[0] << 8) | (buf[1] & 0x00FF);
@@ -41,7 +56,8 @@ static void RamReadA(unsigned short addr, unsigned short *data)
 
 static void RegWriteA(unsigned short addr, unsigned char data)
 {
-	u8 puSendCmd[2] = {(u8)(addr & 0xFF), (u8)(data & 0xFF)};
+	/* To call your IIC function here */
+	u8 puSendCmd[2] = { (u8) (addr & 0xFF), (u8) (data & 0xFF) };
 
 	s4AF_WriteReg_LC898212XDAF_F(puSendCmd, sizeof(puSendCmd), DeviceAddr);
 
@@ -52,7 +68,8 @@ static void RegWriteA(unsigned short addr, unsigned char data)
 
 static void RegReadA(unsigned short addr, unsigned char *data)
 {
-	u8 puSendCmd[1] = {(u8)(addr & 0xFF) };
+	/* To call your IIC function here */
+	u8 puSendCmd[1] = { (u8) (addr & 0xFF) };
 
 	s4AF_ReadReg_LC898212XDAF_F(puSendCmd, sizeof(puSendCmd), data, 1, DeviceAddr);
 
@@ -63,10 +80,13 @@ static void RegReadA(unsigned short addr, unsigned char *data)
 
 static void WaitTime(unsigned short msec)
 {
-	    usleep_range(msec * 1000, (msec + 1) * 1000);
+	/* To call your Wait function here */
+	usleep_range(msec * 1000, (msec + 1) * 1000);
 }
 
+
 /* /////////////////////////////////////// */
+
 
 /* ************************** */
 /* Definations */
@@ -74,9 +94,9 @@ static void WaitTime(unsigned short msec)
 
 #define		REG_ADDR_START		0x80	/* REG Start address */
 
-static struct stSmvPar StSmvPar;
+static stSmvPar StSmvPar;
 
-static void StmvSet(struct stSmvPar StSetSmv)
+static void StmvSet(stSmvPar StSetSmv)
 {
 	unsigned char UcSetEnb;
 	unsigned char UcSetSwt;
@@ -107,7 +127,7 @@ static void StmvSet(struct stSmvPar StSetSmv)
 	RamWriteA(MS1Z12_211H, UsParSiz);	/* Set StepSize */
 	RegWriteA(STMINT_211, UcParItv);	/* Set StepInterval */
 
-	 UcSetSwt |= (unsigned char)0x80;
+	UcSetSwt |= (unsigned char)0x80;
 	RegWriteA(SWTCH_211, UcSetSwt);	/* RZ1 Switch ON */
 }
 
@@ -116,10 +136,10 @@ static unsigned char StmvTo(short SsSmvEnd)
 	unsigned short UsSmvDpl;
 	short SsParStt;		/* StepMove Start Position */
 
-	/* PIOA_SetOutput(_PIO_PA29);   // Monitor I/O Port */
+	/* PIOA_SetOutput(_PIO_PA29);	 // Monitor I/O Port */
 
 	RamReadA(RZ_211H, (unsigned short *)&SsParStt);	/* Get Start Position */
-	UsSmvDpl = ABS_STMV(SsParStt - SsSmvEnd);
+	UsSmvDpl = abs(SsParStt - SsSmvEnd);
 
 	if ((UsSmvDpl <= StSmvPar.UsSmvSiz) && ((StSmvPar.UcSmvEnb & STMSV_ON) == STMSV_ON)) {
 		if (StSmvPar.UcSmvEnb & STMCHTG_ON)
@@ -141,14 +161,12 @@ static unsigned char StmvTo(short SsSmvEnd)
 
 	return 0;
 }
-
 static void AfInit(unsigned char hall_off, unsigned char hall_bias)
 {
 	unsigned int DataLen;
 	unsigned short i;
 	unsigned short pos;
 
-	/* IMX318, IMX230, OV23850 */
 	DataLen = sizeof(Init_Table_F) / sizeof(IniData_F);
 
 	for (i = 0; i < DataLen; i++) {
@@ -158,11 +176,9 @@ static void AfInit(unsigned char hall_off, unsigned char hall_bias)
 		}
 
 		if (Init_Table_F[i].addr >= REG_ADDR_START)
-			RegWriteA(Init_Table_F[i].addr,
-				(unsigned char)(Init_Table_F[i].data & 0x00ff));
+			RegWriteA(Init_Table_F[i].addr, (unsigned char)(Init_Table_F[i].data & 0x00ff));
 		else
-			RamWriteA(Init_Table_F[i].addr,
-				(unsigned short)Init_Table_F[i].data);
+			RamWriteA(Init_Table_F[i].addr, (unsigned short)Init_Table_F[i].data);
 	}
 
 	RegWriteA(0x28, hall_off);	/* Hall Offset */
@@ -171,9 +187,6 @@ static void AfInit(unsigned char hall_off, unsigned char hall_bias)
 	RamReadA(0x3C, &pos);
 	RamWriteA(0x04, pos);	/* Direct move target position */
 	RamWriteA(0x18, pos);	/* Step move start position */
-
-	/* WaitTime(5); */
-	/* RegWriteA( 0x87, 0x85 );              // Servo ON */
 }
 
 static void ServoOn(void)
@@ -183,9 +196,10 @@ static void ServoOn(void)
 	RegWriteA(0x87, 0x85);	/* Servo ON */
 }
 
+
 void LC898212XDAF_F_MONO_init(unsigned char Hall_Off, unsigned char Hall_Bias)
 {
-	struct stSmvPar StSmvPar;
+	stSmvPar StSmvPar;
 
 	AfInit(Hall_Off, Hall_Bias);	/* Initialize driver IC */
 
@@ -194,6 +208,7 @@ void LC898212XDAF_F_MONO_init(unsigned char Hall_Off, unsigned char Hall_Bias)
 	StSmvPar.UcSmvItv = STMV_INTERVAL;
 	StSmvPar.UcSmvEnb = STMCHTG_SET | STMSV_SET | STMLFF_SET;
 	StmvSet(StSmvPar);
+
 	ServoOn();		/* Close loop ON */
 }
 

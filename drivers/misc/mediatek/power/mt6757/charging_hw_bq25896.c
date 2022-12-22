@@ -474,13 +474,19 @@ static int charging_get_battery_status(void *data)
 	*(kal_bool *) (data) = 0;
 	battery_log(BAT_LOG_CRTI, "bat exist for evb\n");
 #else
-
-#if defined(CONFIG_MTK_PMIC_CHIP_MT6355)
-	pmic_set_register_value(PMIC_RG_BATON_EN, 1);
-	*(kal_bool *) (data) = pmic_get_register_value(PMIC_RGS_BATON_UNDET);
-#else
 	unsigned int val = 0;
 
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6355)
+	val = pmic_get_register_value(PMIC_BATON_TDET_EN);
+	battery_log(BAT_LOG_FULL, "[charging_get_battery_status] BATON_TDET_EN = %d\n", val);
+	if (val) {
+		pmic_set_register_value(PMIC_BATON_TDET_EN, 1);
+		pmic_set_register_value(PMIC_RG_BATON_EN, 1);
+		*(kal_bool *) (data) = pmic_get_register_value(PMIC_RGS_BATON_UNDET);
+	} else {
+		*(kal_bool *) (data) = KAL_FALSE;
+	}
+#else
 	val = pmic_get_register_value(MT6351_PMIC_BATON_TDET_EN);
 	battery_log(BAT_LOG_FULL, "[charging_get_battery_status] BATON_TDET_EN = %d\n", val);
 	if (val) {
@@ -559,8 +565,10 @@ static int charging_get_charger_type(void *data)
 		return status;
 	}
 
+	/* FIXME: Put charger type detection code here */
 	charging_type_det_done = KAL_FALSE;
-	*(CHARGER_TYPE *) (data) = hw_charging_get_charger_type();
+	/* *(CHARGER_TYPE *) (data) = hw_charging_get_charger_type(); */
+	*(CHARGER_TYPE *) (data) = STANDARD_HOST;
 	charging_type_det_done = KAL_TRUE;
 	g_charger_type = *(CHARGER_TYPE *) (data);
 
@@ -569,7 +577,7 @@ static int charging_get_charger_type(void *data)
 	return status;
 }
 
-unsigned int __attribute__((weak)) slp_get_wake_reason(void)
+wake_reason_t __attribute__((weak)) slp_get_wake_reason(void)
 {
 	return WR_NONE;
 }

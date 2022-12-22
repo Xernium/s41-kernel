@@ -22,7 +22,6 @@
 #ifdef CMDQ_CG_M4U_LARB0
 #include "m4u.h"
 #endif
-#include "smi_public.h"
 
 static struct cmdqCoreFuncStruct gFunctionPointer;
 
@@ -91,6 +90,10 @@ uint64_t cmdq_virtual_flag_from_scenario_default(enum CMDQ_SCENARIO_ENUM scn)
 	case CMDQ_SCENARIO_DISP_PRIMARY_DISABLE_SECURE_PATH:
 	case CMDQ_SCENARIO_DISP_SUB_DISABLE_SECURE_PATH:
 		/* secure path */
+		flag = 0LL;
+		break;
+
+	case CMDQ_SCENARIO_SECURE_NOTIFY_LOOP:
 		flag = 0LL;
 		break;
 
@@ -244,6 +247,15 @@ bool cmdq_virtual_is_a_secure_thread(const int32_t thread)
 	return false;
 }
 
+bool cmdq_virtual_is_valid_notify_thread_for_secure_path(const int32_t thread)
+{
+#if defined(CMDQ_SECURE_PATH_SUPPORT) && !defined(CMDQ_SECURE_PATH_NORMAL_IRQ)
+	return (thread == 15) ? (true) : (false);
+#else
+	return false;
+#endif
+}
+
 /**
  * Scenario related
  *
@@ -318,6 +330,25 @@ bool cmdq_virtual_should_enable_prefetch(enum CMDQ_SCENARIO_ENUM scenario)
 	return shouldPrefetch;
 }
 
+bool cmdq_virtual_should_profile(enum CMDQ_SCENARIO_ENUM scenario)
+{
+	bool shouldProfile = false;
+
+#ifdef CMDQ_GPR_SUPPORT
+	switch (scenario) {
+	case CMDQ_SCENARIO_DEBUG_PREFETCH:
+	case CMDQ_SCENARIO_DEBUG:
+		return true;
+	default:
+		break;
+	}
+#else
+	/* note command profile method depends on GPR */
+	CMDQ_ERR("func:%s failed since CMDQ doesn't support GPR\n", __func__);
+#endif
+	return shouldProfile;
+}
+
 int cmdq_virtual_disp_thread(enum CMDQ_SCENARIO_ENUM scenario)
 {
 	switch (scenario) {
@@ -380,8 +411,15 @@ int cmdq_virtual_disp_thread(enum CMDQ_SCENARIO_ENUM scenario)
 
 int cmdq_virtual_get_thread_index(enum CMDQ_SCENARIO_ENUM scenario, const bool secure)
 {
+#if defined(CMDQ_SECURE_PATH_SUPPORT) && !defined(CMDQ_SECURE_PATH_NORMAL_IRQ)
+	if (!secure && CMDQ_SCENARIO_SECURE_NOTIFY_LOOP == scenario)
+		return 15;
+#endif
+
+#ifdef CMDQ_RECORD_V3
 	if (scenario == CMDQ_SCENARIO_TIMER_LOOP)
-		return CMDQ_DELAY_THREAD_ID;
+		return 15;
+#endif
 
 	if (!secure)
 		return cmdq_get_func()->dispThread(scenario);
@@ -394,7 +432,7 @@ int cmdq_virtual_get_thread_index(enum CMDQ_SCENARIO_ENUM scenario, const bool s
 	case CMDQ_SCENARIO_RDMA0_DISP:
 	case CMDQ_SCENARIO_DEBUG_PREFETCH:
 		/* CMDQ_MIN_SECURE_THREAD_ID */
-		return CMDQ_THREAD_SEC_PRIMARY_DISP;
+		return 12;
 	case CMDQ_SCENARIO_DISP_SUB_DISABLE_SECURE_PATH:
 	case CMDQ_SCENARIO_SUB_DISP:
 	case CMDQ_SCENARIO_SUB_ALL:
@@ -404,12 +442,12 @@ int cmdq_virtual_get_thread_index(enum CMDQ_SCENARIO_ENUM scenario, const bool s
 	case CMDQ_SCENARIO_DISP_MIRROR_MODE:
 	case CMDQ_SCENARIO_DISP_COLOR:
 	case CMDQ_SCENARIO_PRIMARY_MEMOUT:
-		return CMDQ_THREAD_SEC_SUB_DISP;
+		return 13;
 	case CMDQ_SCENARIO_USER_MDP:
 	case CMDQ_SCENARIO_USER_SPACE:
 	case CMDQ_SCENARIO_DEBUG:
 		/* because there is one input engine for MDP, reserve one secure thread is enough */
-		return CMDQ_THREAD_SEC_MDP;
+		return 14;
 	default:
 		CMDQ_ERR("no dedicated secure thread for senario:%d\n", scenario);
 		return CMDQ_INVALID_THREAD;
@@ -479,6 +517,12 @@ bool cmdq_virtual_force_loop_irq(enum CMDQ_SCENARIO_ENUM scenario)
 {
 	bool force_loop = false;
 
+#ifdef CMDQ_SECURE_PATH_SUPPORT
+	if (scenario == CMDQ_SCENARIO_SECURE_NOTIFY_LOOP) {
+		/* For secure notify loop, we need IRQ to update secure task */
+		force_loop = true;
+	}
+#endif
 	if (scenario == CMDQ_SCENARIO_HIGHP_TRIGGER_LOOP
 		|| scenario == CMDQ_SCENARIO_LOWP_TRIGGER_LOOP) {
 		/* For monitor thread loop, we need IRQ to set callback function */
@@ -532,11 +576,9 @@ void cmdq_virtual_get_reg_id_from_hwflag(uint64_t hwflag, enum CMDQ_DATA_REGISTE
 	}
 }
 
-const char *cmdq_virtual_module_from_event_id(const int32_t event,
-	struct CmdqCBkStruct *groupCallback, uint64_t engineFlag)
+const char *cmdq_virtual_module_from_event_id(const int32_t event)
 {
 	const char *module = "CMDQ";
-	enum CMDQ_GROUP_ENUM group = CMDQ_MAX_GROUP_COUNT;
 
 	switch (event) {
 	case CMDQ_EVENT_DISP_RDMA0_SOF:
@@ -549,7 +591,6 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_DISP_RDMA1_UNDERRUN:
 	case CMDQ_EVENT_DISP_RDMA2_UNDERRUN:
 		module = "DISP_RDMA";
-		group = CMDQ_GROUP_DISP;
 		break;
 
 	case CMDQ_EVENT_DISP_WDMA0_SOF:
@@ -557,7 +598,6 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_DISP_WDMA0_EOF:
 	case CMDQ_EVENT_DISP_WDMA1_EOF:
 		module = "DISP_WDMA";
-		group = CMDQ_GROUP_DISP;
 		break;
 
 	case CMDQ_EVENT_DISP_OVL0_SOF:
@@ -569,13 +609,11 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_DISP_2L_OVL0_EOF:
 	case CMDQ_EVENT_DISP_2L_OVL1_EOF:
 		module = "DISP_OVL";
-		group = CMDQ_GROUP_DISP;
 		break;
 
 	case CMDQ_EVENT_UFOD_RAMA0_L0_SOF ... CMDQ_EVENT_UFOD_RAMA1_L3_SOF:
 	case CMDQ_EVENT_UFOD_RAMA0_L0_EOF ... CMDQ_EVENT_UFOD_RAMA1_L3_EOF:
 		module = "DISP_UFOD";
-		group = CMDQ_GROUP_DISP;
 		break;
 
 	case CMDQ_EVENT_DSI_TE:
@@ -590,23 +628,21 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_DISP_COLOR_EOF ... CMDQ_EVENT_DISP_DSC_EOF:
 	case CMDQ_EVENT_MUTEX0_STREAM_EOF ... CMDQ_EVENT_MUTEX4_STREAM_EOF:
 		module = "DISP";
-		group = CMDQ_GROUP_DISP;
 		break;
 	case CMDQ_SYNC_TOKEN_CONFIG_DIRTY:
 	case CMDQ_SYNC_TOKEN_STREAM_EOF:
 		module = "DISP";
-		group = CMDQ_GROUP_DISP;
 		break;
 
 	case CMDQ_EVENT_MDP_RDMA0_SOF ... CMDQ_EVENT_MDP_CROP_SOF:
 	case CMDQ_EVENT_MDP_RDMA0_EOF ... CMDQ_EVENT_MDP_CROP_EOF:
 	case CMDQ_EVENT_MUTEX5_STREAM_EOF ... CMDQ_EVENT_MUTEX9_STREAM_EOF:
 		module = "MDP";
-		group = CMDQ_GROUP_MDP;
 		break;
 
 	case CMDQ_EVENT_ISP_PASS2_2_EOF ... CMDQ_EVENT_ISP_PASS1_0_EOF:
 	case CMDQ_EVENT_DIP_CQ_THREAD0_EOF ... CMDQ_EVENT_DIP_CQ_THREAD14_EOF:
+	case CMDQ_EVENT_DPE_EOF:
 	case CMDQ_EVENT_WMF_EOF:
 	case CMDQ_EVENT_ISP_SENINF_CAM1_2_3_FULL:
 	case CMDQ_EVENT_ISP_SENINF_CAM0_FULL:
@@ -616,19 +652,7 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_ISP_CAMSV_1_PASS1_DONE:
 	case CMDQ_EVENT_ISP_CAMSV_2_PASS1_DONE:
 	case CMDQ_EVENT_SENINF_0_FIFO_FULL ... CMDQ_EVENT_SENINF_7_FIFO_FULL:
-		module = "DIP";
-		group = CMDQ_GROUP_ISP;
-		break;
-
-	case CMDQ_EVENT_DPE_EOF:
-	case CMDQ_EVENT_RSC_EOF:
-	case CMDQ_EVENT_GEPF_EOF:
-	case CMDQ_EVENT_GEPF_TEMP_EOF:
-	case CMDQ_EVENT_GEPF_BYPASS_EOF:
-	case CMDQ_EVENT_WPE_A_EOF:
-	case CMDQ_EVENT_EAF_EOF:
-		module = "DIP";
-		group = CMDQ_GROUP_ISP;
+		module = "ISP";
 		break;
 
 	case CMDQ_EVENT_JPEG_ENC_EOF:
@@ -636,24 +660,18 @@ const char *cmdq_virtual_module_from_event_id(const int32_t event,
 	case CMDQ_EVENT_JPEG_ENC_PASS1_EOF:
 	case CMDQ_EVENT_JPEG_DEC_EOF:
 		module = "JPGE";
-		group = CMDQ_GROUP_JPEG;
 		break;
 
 	case CMDQ_EVENT_VENC_EOF:
 	case CMDQ_EVENT_VENC_MB_DONE:
 	case CMDQ_EVENT_VENC_128BYTE_CNT_DONE:
 		module = "VENC";
-		group = CMDQ_GROUP_VENC;
 		break;
 
 	default:
 		module = "CMDQ";
-		group = CMDQ_MAX_GROUP_COUNT;
 		break;
 	}
-
-	if (group < CMDQ_MAX_GROUP_COUNT && groupCallback[group].dispatchMod)
-		module = groupCallback[group].dispatchMod(engineFlag);
 
 	return module;
 }
@@ -669,38 +687,29 @@ const char *cmdq_virtual_parse_module_from_reg_addr(uint32_t reg_addr)
 	/* defined in mt_reg_base.h */
 	/* TODO: comfirm with SS if IO_VIRT_TO_PHYS workable when enable device tree? */
 	switch (addr_base_and_page) {
-	case 0x14001000: /* MDP_RDMA0 */
-	case 0x14002000: /* MDP_RDMA1 */
-	case 0x14003000: /* MDP_RSZ0 */
-	case 0x14004000: /* MDP_RSZ1 */
-	case 0x14005000: /* MDP_RSZ2 */
-	case 0x14006000: /* MDP_WDMA */
-	case 0x14007000: /* MDP_WROT0 */
-	case 0x14008000: /* MDP_WROT1 */
-	case 0x14009000: /* MDP_TDSHP */
+	case 0x14001000: /* MDP_RDMA */
+	case 0x14002000: /* MDP_RSZ0 */
+	case 0x14003000: /* MDP_RSZ1 */
+	case 0x14004000: /* MDP_WDMA */
+	case 0x14005000: /* MDP_WROT */
+	case 0x14006000: /* MDP_TDSHP */
 		return "MDP";
-	case 0x14014000: /* DISP_COLOR0 */
-	case 0x14015000: /* DISP_COLOR1 */
+	case 0x1400C000: /* DISP_COLOR */
 		return "COLOR";
-	case 0x14016000: /* DISP_COLOR0 */
-	case 0x14017000: /* DISP_COLOR1 */
+	case 0x1400D000: /* DISP_COLOR */
 		return "CCORR";
-	case 0x1400B000: /* DISP_OVL0 */
-	case 0x1400D000: /* DISP_OVL0_2L */
+	case 0x14007000: /* DISP_OVL0 */
 		return "OVL0";
-	case 0x1400C000: /* DISP_OVL1 */
-	case 0x1400E000: /* DISP_OVL1_2L */
+	case 0x14008000: /* DISP_OVL1 */
 		return "OVL1";
-	case 0x14018000: /* DISP_AAL0 */
-	case 0x14019000: /* DISP_AAL1 */
-	case 0x1401a000: /* DISP_GAMMA0 */
-	case 0x1401b000: /* DISP_GAMMA1 */
+	case 0x1400E000: /* DISP_AAL */
+	case 0x1400F000: /* DISP_GAMMA */
 		return "AAL";
-	case 0x17020000: /* VENC */
+	case 0x17002FFF: /* VENC */
 		return "VENC";
-	case 0x17030000: /* JPGENC */
+	case 0x17003FFF: /* JPGENC */
 		return "JPGENC";
-	case 0x17040000: /* JPGDEC */
+	case 0x17004FFF: /* JPGDEC */
 		return "JPGDEC";
 	}
 
@@ -774,15 +783,28 @@ void cmdq_virtual_enable_common_clock_locked(bool enable)
 #ifdef CMDQ_PWR_AWARE
 	if (enable) {
 		CMDQ_VERBOSE("[CLOCK] Enable SMI & LARB0 Clock\n");
-		/* Use SMI clock API */
-#ifdef CMDQ_CONFIG_SMI
-		smi_bus_enable(SMI_LARB_MMSYS0, "CMDQ");
+		cmdq_dev_enable_clock_SMI_COMMON(enable);
+#ifdef CMDQ_CG_M4U_LARB0
+		m4u_larb0_enable("CMDQ_MDP");
+#else
+		cmdq_dev_enable_clock_SMI_LARB0(enable);
+#endif
+#ifdef CMDQ_USE_LEGACY
+		CMDQ_VERBOSE("[CLOCK] enable MT_CG_DISP0_MUTEX_32K\n");
+		cmdq_dev_enable_clock_MUTEX_32K(enable);
 #endif
 	} else {
 		CMDQ_VERBOSE("[CLOCK] Disable SMI & LARB0 Clock\n");
 		/* disable, reverse the sequence */
-#ifdef CMDQ_CONFIG_SMI
-		smi_bus_disable(SMI_LARB_MMSYS0, "CMDQ");
+#ifdef CMDQ_CG_M4U_LARB0
+		m4u_larb0_disable("CMDQ_MDP");
+#else
+		cmdq_dev_enable_clock_SMI_LARB0(enable);
+#endif
+		cmdq_dev_enable_clock_SMI_COMMON(enable);
+#ifdef CMDQ_USE_LEGACY
+		CMDQ_VERBOSE("[CLOCK] disable MT_CG_DISP0_MUTEX_32K\n");
+		cmdq_dev_enable_clock_MUTEX_32K(enable);
 #endif
 	}
 #endif				/* CMDQ_PWR_AWARE */
@@ -801,14 +823,44 @@ void cmdq_virtual_enable_gce_clock_locked(bool enable)
 #endif
 }
 
-const char *cmdq_virtual_parse_error_module_by_hwflag_impl(const struct TaskStruct *task)
+const char *cmdq_virtual_parse_error_module_by_hwflag_impl(const struct TaskStruct *pTask)
 {
 	const char *module = NULL;
+	const uint32_t ISP_ONLY[2] = {
+		((1LL << CMDQ_ENG_ISP_IMGI) | (1LL << CMDQ_ENG_ISP_IMG2O)),
+		((1LL << CMDQ_ENG_ISP_IMGI) | (1LL << CMDQ_ENG_ISP_IMG2O) |
+		 (1LL << CMDQ_ENG_ISP_IMGO))
+	};
 
-	if (cmdq_get_func()->isDispScenario(task->scenario))
+	/* common part for both normal and secure path */
+	/* for JPEG scenario, use HW flag is sufficient */
+	if (pTask->engineFlag & (1LL << CMDQ_ENG_JPEG_ENC))
+		module = "JPGENC";
+	else if (pTask->engineFlag & (1LL << CMDQ_ENG_JPEG_DEC))
+		module = "JPGDEC";
+	else if ((ISP_ONLY[0] == pTask->engineFlag) || (ISP_ONLY[1] == pTask->engineFlag))
+		module = "ISP_ONLY";
+	else if (cmdq_get_func()->isDispScenario(pTask->scenario))
 		module = "DISP";
-	else
-		module = cmdq_mdp_parse_error_module_by_hwflag(task);
+
+	/* for secure path, use HW flag is sufficient */
+	do {
+		if (module != NULL)
+			break;
+
+		if (false == pTask->secData.is_secure) {
+			/* normal path, need parse current running instruciton for more detail */
+			break;
+		} else if (CMDQ_ENG_MDP_GROUP_FLAG(pTask->engineFlag)) {
+			module = "MDP";
+			break;
+		} else if (CMDQ_ENG_DPE_GROUP_FLAG(pTask->engineFlag)) {
+			module = "DPE";
+			break;
+		}
+
+		module = "CMDQ";
+	} while (0);
 
 	/* other case, we need to analysis instruction for more detail */
 	return module;
@@ -818,14 +870,32 @@ const char *cmdq_virtual_parse_error_module_by_hwflag_impl(const struct TaskStru
  * Debug
  *
  */
+void cmdq_virtual_dump_mmsys_config(void)
+{
+	/* do nothing */
+}
+
+void cmdq_virtual_dump_clock_gating(void)
+{
+	uint32_t value[3] = { 0 };
+
+	value[0] = CMDQ_REG_GET32(MMSYS_CONFIG_BASE + 0x100);
+	value[1] = CMDQ_REG_GET32(MMSYS_CONFIG_BASE + 0x110);
+	CMDQ_ERR("MMSYS_CG_CON0(deprecated): 0x%08x, MMSYS_CG_CON1: 0x%08x\n", value[0], value[1]);
+#ifdef CMDQ_USE_LEGACY
+	value[2] = CMDQ_REG_GET32(MMSYS_CONFIG_BASE + 0x890);
+	CMDQ_ERR("MMSYS_DUMMY_REG: 0x%08x\n", value[2]);
+#endif
+}
+
 int cmdq_virtual_dump_smi(const int showSmiDump)
 {
 	int isSMIHang = 0;
 
-#if defined(CMDQ_CONFIG_SMI) && !defined(CONFIG_MTK_FPGA) && !defined(CONFIG_MTK_SMI_VARIANT)
+#if defined(CMDQ_CONFIG_SMI) && !defined(CONFIG_MTK_FPGA)
 	isSMIHang =
-	    smi_debug_bus_hanging_detect_ext2(SMI_DBG_DISPSYS | SMI_DBG_VDEC | SMI_DBG_IMGSYS |
-					     SMI_DBG_VENC | SMI_DBG_MJC, showSmiDump, showSmiDump, showSmiDump);
+	    smi_debug_bus_hanging_detect_ext(SMI_DBG_DISPSYS | SMI_DBG_VDEC | SMI_DBG_IMGSYS |
+					     SMI_DBG_VENC | SMI_DBG_MJC, showSmiDump, showSmiDump);
 	CMDQ_ERR("SMI Hang? = %d\n", isSMIHang);
 #else
 	CMDQ_LOG("[WARNING]not enable SMI dump now\n");
@@ -1003,6 +1073,66 @@ void cmdq_virtual_test_cleanup(void)
 
 void cmdq_virtual_init_module_PA_stat(void)
 {
+#if defined(CMDQ_OF_SUPPORT) && defined(CMDQ_INSTRUCTION_COUNT)
+	int32_t i;
+	CmdqModulePAStatStruct *modulePAStat = cmdq_core_Initial_and_get_module_stat();
+
+	/* Get MM_SYS config registers range */
+	cmdq_dev_get_module_PA("mediatek,mmsys_config", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MMSYS_CONFIG],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MMSYS_CONFIG]);
+	/* Get MDP module registers range */
+	cmdq_dev_get_module_PA("mediatek,mdp_rdma", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_RDMA],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_RDMA]);
+	cmdq_dev_get_module_PA("mediatek,mdp_rsz0", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_RSZ0],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_RSZ0]);
+	cmdq_dev_get_module_PA("mediatek,mdp_rsz1", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_RSZ1],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_RSZ1]);
+	cmdq_dev_get_module_PA("mediatek,mdp_wdma", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_WDMA],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_WDMA]);
+	cmdq_dev_get_module_PA("mediatek,mdp_wrot", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_WROT],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_WROT]);
+	cmdq_dev_get_module_PA("mediatek,mdp_tdshp", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MDP_TDSHP],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MDP_TDSHP]);
+	cmdq_dev_get_module_PA("mediatek,MM_MUTEX", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_MM_MUTEX],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_MM_MUTEX]);
+	cmdq_dev_get_module_PA("mediatek,VENC", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_VENC],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_VENC]);
+	/* Get DISP module registers range */
+	for (i = CMDQ_MODULE_STAT_DISP_OVL0; i <= CMDQ_MODULE_STAT_DISP_DPI0; i++) {
+		cmdq_dev_get_module_PA("mediatek,DISPSYS",
+						    (i - CMDQ_MODULE_STAT_DISP_OVL0),
+						    &modulePAStat->start[i], &modulePAStat->end[i]);
+	}
+	cmdq_dev_get_module_PA("mediatek,DISPSYS", 31,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_DISP_OD],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_DISP_OD]);
+	/* Get CAM module registers range */
+	cmdq_dev_get_module_PA("mediatek,CAM0", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_CAM0],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_CAM0]);
+	cmdq_dev_get_module_PA("mediatek,CAM1", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_CAM1],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_CAM1]);
+	cmdq_dev_get_module_PA("mediatek,CAM2", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_CAM2],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_CAM2]);
+	cmdq_dev_get_module_PA("mediatek,CAM3", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_CAM3],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_CAM3]);
+	/* Get SODI registers range */
+	cmdq_dev_get_module_PA("mediatek,SLEEP", 0,
+					    &modulePAStat->start[CMDQ_MODULE_STAT_SODI],
+					    &modulePAStat->end[CMDQ_MODULE_STAT_SODI]);
+#endif
 }
 
 void cmdq_virtual_function_setting(void)
@@ -1018,6 +1148,7 @@ void cmdq_virtual_function_setting(void)
 
 	/* HW thread related */
 	pFunc->isSecureThread = cmdq_virtual_is_a_secure_thread;
+	pFunc->isValidNotifyThread = cmdq_virtual_is_valid_notify_thread_for_secure_path;
 
 	/**
 	 * Scenario related
@@ -1025,6 +1156,7 @@ void cmdq_virtual_function_setting(void)
 	 */
 	pFunc->isDispScenario = cmdq_virtual_is_disp_scenario;
 	pFunc->shouldEnablePrefetch = cmdq_virtual_should_enable_prefetch;
+	pFunc->shouldProfile = cmdq_virtual_should_profile;
 	pFunc->dispThread = cmdq_virtual_disp_thread;
 	pFunc->getThreadID = cmdq_virtual_get_thread_index;
 	pFunc->priority = cmdq_virtual_priority_from_scenario;
@@ -1049,6 +1181,8 @@ void cmdq_virtual_function_setting(void)
 	 * Debug
 	 *
 	 */
+	pFunc->dumpMMSYSConfig = cmdq_virtual_dump_mmsys_config;
+	pFunc->dumpClockGating = cmdq_virtual_dump_clock_gating;
 	pFunc->dumpSMI = cmdq_virtual_dump_smi;
 	pFunc->dumpGPR = cmdq_virtual_dump_gpr;
 

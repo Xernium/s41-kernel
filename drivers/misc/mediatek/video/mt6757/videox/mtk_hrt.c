@@ -221,11 +221,10 @@ static int filter_by_ovl_cnt(struct disp_layer_info *disp_info)
 	/* 0->primary display, 1->secondary display */
 	for (disp_index = 0 ; disp_index < 2 ; disp_index++) {
 		/* No need to considerate HRT in decouple mode */
-#if 0
 		if (disp_info->disp_mode[disp_index] == DISP_SESSION_DECOUPLE_MIRROR_MODE ||
 				disp_info->disp_mode[disp_index] == DISP_SESSION_DECOUPLE_MODE)
 			continue;
-#endif
+
 		if (disp_index == 0)
 			if (dal_enable)
 				ovl_num_limit = primary_max_input_layer_num - 1;
@@ -459,18 +458,18 @@ static int scan_y_overlap(struct disp_layer_info *disp_info, int disp_index, int
 static int get_hrt_level(int sum_overlap_w, int is_larb)
 {
 	if (is_larb) {
-		if (sum_overlap_w <= larb_lower_bound * HRT_UNIT_FPS)
+		if (sum_overlap_w <= larb_lower_bound * BYTES_PER_SECOND_FULLSCREEN)
 			return HRT_LEVEL_LOW;
-		else if (sum_overlap_w <= larb_upper_bound * HRT_UNIT_FPS)
+		else if (sum_overlap_w <= larb_upper_bound * BYTES_PER_SECOND_FULLSCREEN)
 			return HRT_LEVEL_HIGH;
 		else
 			return HRT_OVER_LIMIT;
 	} else {
-		if (sum_overlap_w <= emi_ulpm_bound * HRT_UNIT_FPS && primary_fps == 60)
+		if (sum_overlap_w <= emi_ulpm_bound * BYTES_PER_SECOND_FULLSCREEN && primary_fps == 60)
 			return HRT_LEVEL_EXTREME_LOW;
-		if (sum_overlap_w <= emi_lpm_bound * HRT_UNIT_FPS)
+		if (sum_overlap_w <= emi_lpm_bound * BYTES_PER_SECOND_FULLSCREEN)
 			return HRT_LEVEL_LOW;
-		else if (sum_overlap_w <= emi_hpm_bound * HRT_UNIT_FPS)
+		else if (sum_overlap_w <= emi_hpm_bound * BYTES_PER_SECOND_FULLSCREEN)
 			return HRT_LEVEL_HIGH;
 		else
 			return HRT_OVER_LIMIT;
@@ -560,7 +559,7 @@ static int _calc_hrt_num(struct disp_layer_info *disp_info, int disp_index,
 
 	/* total bytes per second */
 	sum_overlap_w = 0;
-	overlap_lower_bound = emi_lpm_bound * HRT_UNIT_FPS;
+	overlap_lower_bound = emi_lpm_bound * BYTES_PER_SECOND_FULLSCREEN;
 
 	/* To check if has GPU layer for input layers */
 	if (disp_info->gles_head[disp_index] != -1 &&
@@ -816,133 +815,6 @@ static void ext_layer_info_init(struct disp_layer_info *disp_info)
  * 1. consider SIM LARB layout
  * 2. affect the max ovl layer number returned to HWC
  */
-#ifndef LAYERING_SUPPORT_EXT_LAYER_ON_2ND_DISP
-static int dispatch_ext_layer(struct disp_layer_info *disp_info)
-{
-	int ext_layer_num_on_OVL, ext_layer_num_on_OVL_2L;
-	int phy_layer_num_on_OVL, phy_layer_num_on_OVL_2L;
-	int hw_layer_num;	/* tmp variable */
-	int is_on_OVL, is_ext_layer;
-	int disp_idx, i;
-	struct layer_config *src_info, *dst_info;
-	int layout_layers, prim_layout_layers = 0;
-
-	ext_layer_info_init(disp_info);
-
-	ext_layer_num_on_OVL = ext_layer_num_on_OVL_2L = 0;
-	phy_layer_num_on_OVL = 1;
-	phy_layer_num_on_OVL_2L = 0;
-	is_on_OVL = 1;
-	layout_layers = 0;
-
-	/*only the primary support ext layer*/
-	disp_idx = 0;
-
-	for (i = 1 ; i < disp_info->layer_num[disp_idx]; i++) {
-		dst_info = &disp_info->input_config[disp_idx][i];
-		src_info = &disp_info->input_config[disp_idx][i-1];
-		/** skip other GPU layers */
-		if (dst_info->ovl_id == src_info->ovl_id)
-			continue;
-
-		is_ext_layer = !is_overlap_on_yaxis(src_info, dst_info);
-
-		is_ext_layer &= !is_continuous_ext_layer_overlap(disp_info->input_config[disp_idx], i);
-		/**
-		 * update current ext_layer_num and phy_layer_num
-		 */
-		if (is_ext_layer) {
-			if (is_on_OVL)
-				++ext_layer_num_on_OVL;
-			else
-				++ext_layer_num_on_OVL_2L;
-		} else {
-			if (is_on_OVL)
-				++phy_layer_num_on_OVL;
-			else
-				++phy_layer_num_on_OVL_2L;
-		}
-
-		/**
-		 * If ext layer num exceed HW capability on OVL, then
-		 * 1. if OVL is full, put the current ext layer on OVL_2L and change it to phy layer
-		 * 2. if OVL is not full, put the current ext layer on OVL and change it to phy layer
-		 */
-		hw_layer_num = PRIMARY_HW_OVL_LAYER_NUM;
-		if (is_on_OVL && (ext_layer_num_on_OVL > DISP_HW_OVL0_EXT_LAYER_NUM)) {
-			if (phy_layer_num_on_OVL > hw_layer_num) {
-				is_on_OVL = 0;
-				is_ext_layer = 0;
-				++phy_layer_num_on_OVL_2L;
-			} else if (is_ext_layer) {
-				is_ext_layer = 0;
-				++phy_layer_num_on_OVL;
-			}
-		}
-
-		/**
-		 * If OVL is full, put the current phy layer onto OVL_2L
-		 */
-		if (is_on_OVL && (phy_layer_num_on_OVL > hw_layer_num)) {
-			is_on_OVL = 0;
-			++phy_layer_num_on_OVL_2L;
-		}
-
-		/**
-		 * If ext layer num exceed HW capability on OVL_2L, then
-		 * 1. if OVL_2L is full, need to rollback to GPU
-		 * 2. if OVL_2L is not full, put the current ext layer on OVL_2L and change it to phy layer
-		 */
-		hw_layer_num = PRIMARY_HW_OVL_2L_LAYER_NUM;
-		if (!is_on_OVL && (ext_layer_num_on_OVL_2L > DISP_HW_OVL0_2L_EXT_LAYER_NUM)) {
-			is_ext_layer = 0;
-			++phy_layer_num_on_OVL_2L;
-		}
-
-		/**
-		 * If OVL_2L is full, this phy layer exceed the HW capability, need to rollback to GPU
-		 * no need to check layers behind it any more!
-		 */
-		if (dal_enable)
-			hw_layer_num = PRIMARY_HW_OVL_2L_LAYER_NUM - 1;
-
-		if (phy_layer_num_on_OVL_2L > hw_layer_num) {
-			layout_layers += PRIMARY_HW_OVL_LAYER_NUM + PRIMARY_HW_OVL_2L_LAYER_NUM;
-			if (dal_enable)
-				layout_layers = layout_layers - 1;
-			layout_layers += (ext_layer_num_on_OVL < DISP_HW_OVL0_EXT_LAYER_NUM) ?
-				ext_layer_num_on_OVL : DISP_HW_OVL0_EXT_LAYER_NUM;
-			layout_layers += (ext_layer_num_on_OVL_2L < DISP_HW_OVL0_2L_EXT_LAYER_NUM) ?
-				ext_layer_num_on_OVL_2L : DISP_HW_OVL0_2L_EXT_LAYER_NUM;
-
-			break;
-		}
-
-		if (is_ext_layer) {
-			if (is_on_OVL)
-				dst_info->ext_sel_layer = phy_layer_num_on_OVL - 1;
-			else
-				dst_info->ext_sel_layer = phy_layer_num_on_OVL_2L - 1;
-		}
-
-		if (i == 1)
-			DISPDBG("dispatch ext: N%d gles(%d,%d) L%d->%d, ext_sel:%d\n",
-					disp_info->layer_num[disp_idx], disp_info->gles_head[disp_idx],
-					disp_info->gles_tail[disp_idx], i-1, src_info->ovl_id,
-					src_info->ext_sel_layer);
-			DISPDBG("dispatch ext: N%d gles(%d,%d) L%d->%d, ext_sel:%d\n",
-					disp_info->layer_num[disp_idx], disp_info->gles_head[disp_idx],
-					disp_info->gles_tail[disp_idx], i, dst_info->ovl_id, dst_info->ext_sel_layer);
-	}
-
-	/*if (disp_idx == 0)*/
-	prim_layout_layers = layout_layers;
-
-	/* We just care about primary display */
-	return prim_layout_layers;
-}
-#else
-
 static int dispatch_ext_layer(struct disp_layer_info *disp_info)
 {
 	int ext_layer_num_on_OVL, ext_layer_num_on_OVL_2L;
@@ -992,12 +864,12 @@ static int dispatch_ext_layer(struct disp_layer_info *disp_info)
 			 * 2. if OVL is not full, put the current ext layer on OVL and change it to phy layer
 			 */
 			 hw_layer_num = (disp_idx == 0) ? PRIMARY_HW_OVL_LAYER_NUM : EXTERNAL_HW_OVL_LAYER_NUM;
-			if (is_on_OVL && (ext_layer_num_on_OVL > DISP_HW_OVL0_EXT_LAYER_NUM)) {
+			if (is_on_OVL && (ext_layer_num_on_OVL > DISP_HW_OVL_EXT_LAYER_NUM)) {
 				if (phy_layer_num_on_OVL > hw_layer_num) {
 					is_on_OVL = 0;
 					is_ext_layer = 0;
 					++phy_layer_num_on_OVL_2L;
-				} else if (is_ext_layer) {
+				} else {
 					is_ext_layer = 0;
 					++phy_layer_num_on_OVL;
 				}
@@ -1017,7 +889,7 @@ static int dispatch_ext_layer(struct disp_layer_info *disp_info)
 			 * 2. if OVL_2L is not full, put the current ext layer on OVL_2L and change it to phy layer
 			 */
 			 hw_layer_num = (disp_idx == 0) ? PRIMARY_HW_OVL_2L_LAYER_NUM : EXTERNAL_HW_OVL_2L_LAYER_NUM;
-			if (!is_on_OVL && (ext_layer_num_on_OVL_2L > DISP_HW_OVL0_2L_EXT_LAYER_NUM)) {
+			if (!is_on_OVL && (ext_layer_num_on_OVL_2L > DISP_HW_OVL_EXT_LAYER_NUM)) {
 				is_ext_layer = 0;
 				++phy_layer_num_on_OVL_2L;
 			}
@@ -1035,10 +907,10 @@ static int dispatch_ext_layer(struct disp_layer_info *disp_info)
 					EXTERNAL_HW_OVL_LAYER_NUM + EXTERNAL_HW_OVL_2L_LAYER_NUM;
 				if (dal_enable && (disp_idx == 0))
 					layout_layers = layout_layers - 1;
-				layout_layers += (ext_layer_num_on_OVL < DISP_HW_OVL0_EXT_LAYER_NUM) ?
-					ext_layer_num_on_OVL : DISP_HW_OVL0_EXT_LAYER_NUM;
-				layout_layers += (ext_layer_num_on_OVL_2L < DISP_HW_OVL0_2L_EXT_LAYER_NUM) ?
-					ext_layer_num_on_OVL_2L : DISP_HW_OVL0_2L_EXT_LAYER_NUM;
+				layout_layers += (ext_layer_num_on_OVL < DISP_HW_OVL_EXT_LAYER_NUM) ?
+					ext_layer_num_on_OVL : DISP_HW_OVL_EXT_LAYER_NUM;
+				layout_layers += (ext_layer_num_on_OVL_2L < DISP_HW_OVL_EXT_LAYER_NUM) ?
+					ext_layer_num_on_OVL_2L : DISP_HW_OVL_EXT_LAYER_NUM;
 
 				break;
 			}
@@ -1069,7 +941,6 @@ static int dispatch_ext_layer(struct disp_layer_info *disp_info)
 	/* We just care about primary display */
 	return prim_layout_layers;
 }
-#endif
 
 static int dispatch_ovl_id(struct disp_layer_info *disp_info, int available)
 {
@@ -1079,10 +950,10 @@ static int dispatch_ovl_id(struct disp_layer_info *disp_info, int available)
 
 	/* Dispatch gles range if necessary */
 	if (disp_info->hrt_num > HRT_LEVEL_HIGH) {
-		valid_ovl_cnt = emi_hpm_bound / HRT_UNIT_BPP;
+		valid_ovl_cnt = emi_hpm_bound;
 
 		if (dal_enable)
-			valid_ovl_cnt -= 1;
+			valid_ovl_cnt = emi_hpm_bound - 1;
 
 		/*
 		* Arrange 4 ovl layers to secondary display, so no need to
@@ -1091,19 +962,25 @@ static int dispatch_ovl_id(struct disp_layer_info *disp_info, int available)
 		*/
 		if (has_hrt_limit(disp_info, HRT_SECONDARY))
 			valid_ovl_cnt -= get_ovl_layer_cnt(disp_info, HRT_SECONDARY);
-
-		if (valid_ovl_cnt <= 0) {
-			DISPMSG("warning:%s second display has too many layers:%d\n", __func__,
-				get_ovl_layer_cnt(disp_info, HRT_SECONDARY));
-			valid_ovl_cnt = 1;
-		}
-
 		if (has_hrt_limit(disp_info, HRT_PRIMARY))
 			fallback_to_GPU(disp_info, HRT_PRIMARY, valid_ovl_cnt);
 
-		disp_info->hrt_num = get_hrt_level(valid_ovl_cnt * HRT_UNIT_BPP * HRT_UNIT_FPS, 0);
+		disp_info->hrt_num = HRT_LEVEL_HIGH;
 	}
+	/* the max layer count of current HRT level */
+	if (valid_ovl_cnt == 0) {
+		if (disp_info->hrt_num <= HRT_LEVEL_EXTREME_LOW)
+			valid_ovl_cnt = emi_ulpm_bound;
+		else if (disp_info->hrt_num <= HRT_LEVEL_LOW)
+			valid_ovl_cnt = emi_lpm_bound;
+		else if (disp_info->hrt_num <= HRT_LEVEL_HIGH)
+			valid_ovl_cnt = emi_hpm_bound;
+		else
+			valid_ovl_cnt = emi_hpm_bound;
 
+		if (dal_enable)
+			valid_ovl_cnt -= 1;
+	}
 	/* The layer num of HRT allow to enter is more than HW capability(PHY+EXT) */
 	if (available != 0) {
 		fallback_to_GPU(disp_info, HRT_PRIMARY, available);
@@ -1154,11 +1031,6 @@ int check_disp_info(struct disp_layer_info *disp_info)
 
 	for (disp_idx = 0 ; disp_idx < 2 ; disp_idx++) {
 
-		if (disp_info->layer_num[disp_idx] < 0) {
-			DISPERR("[HRT]disp_info layer_num invalid!\n");
-			return -1;
-		}
-
 		if (disp_info->layer_num[disp_idx] > 0 &&
 			disp_info->input_config[disp_idx] == NULL) {
 			DISPERR("[HRT]Has input layer, but input config is empty, disp_idx:%d, layer_num:%d\n",
@@ -1169,6 +1041,7 @@ int check_disp_info(struct disp_layer_info *disp_info)
 		if ((disp_info->gles_head[disp_idx] < 0 && disp_info->gles_tail[disp_idx] >= 0) ||
 			(disp_info->gles_tail[disp_idx] < 0 && disp_info->gles_head[disp_idx] >= 0) ||
 			(disp_info->gles_head[disp_idx] < -1 || disp_info->gles_tail[disp_idx] < -1)) {
+			dump_disp_info(disp_info);
 			DISPERR("[HRT]gles layer invalid, disp_idx:%d, head:%d, tail:%d\n",
 				disp_idx, disp_info->gles_head[disp_idx], disp_info->gles_tail[disp_idx]);
 			return -1;
@@ -1293,7 +1166,7 @@ int gen_hrt_pattern(void)
 
 	dispsys_hrt_calc(&disp_info);
 
-	DISPCHECK("free test pattern\n");
+	DISPMSG("free test pattern\n");
 	kfree(disp_info.input_config[0]);
 	kfree(disp_info.input_config[1]);
 	msleep(50);
@@ -1304,7 +1177,6 @@ int gen_hrt_pattern(void)
 static int set_hrt_bound(void)
 {
 	int ddr_type;
-	int h = disp_helper_get_option(DISP_OPT_FAKE_LCM_HEIGHT);
 
 	if (primary_display_get_lcm_refresh_rate() == 120) {
 		emi_lpm_bound = OD_EMI_LOWER_BOUND;
@@ -1319,57 +1191,15 @@ static int set_hrt_bound(void)
 	/* LP3 or LP4 */
 	ddr_type = get_ddr_type();
 	if (ddr_type == TYPE_LPDDR3) {
-		if (h > 2000) {
-			/* FHD+ */
-			emi_ulpm_bound = EMI_LP3_FHDP_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP3_FHDP_LPM_BOUND;
-			emi_hpm_bound = EMI_LP3_FHDP_HPM_BOUND;
-		} else if (h > 1800) {
-			/* FHD */
-			emi_ulpm_bound = EMI_LP3_FHD_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP3_FHD_LPM_BOUND;
-			emi_hpm_bound = EMI_LP3_FHD_HPM_BOUND;
-		} else if (h > 1300) {
-			/* HD+ */
-			emi_ulpm_bound = EMI_LP3_HDP_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP3_HDP_LPM_BOUND;
-			emi_hpm_bound = EMI_LP3_HDP_HPM_BOUND;
-		} else {
-			/* HD */
-			emi_ulpm_bound = EMI_LP3_HD_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP3_HD_LPM_BOUND;
-			emi_hpm_bound = EMI_LP3_HD_HPM_BOUND;
-		}
+		emi_ulpm_bound = EMI_LP3_ULPM_BOUND;
+		emi_lpm_bound = EMI_LP3_LPM_BOUND;
+		emi_hpm_bound = EMI_LP3_HPM_BOUND;
 	} else {
 		/* LPDDR4 or LPDDR4x */
-		if (h > 2000) {
-			/* FHD+ */
-			emi_ulpm_bound = EMI_LP4_FHDP_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP4_FHDP_LPM_BOUND;
-			emi_hpm_bound = EMI_LP4_FHDP_HPM_BOUND;
-		} else if (h > 1800) {
-			/* FHD */
-			emi_ulpm_bound = EMI_LP4_FHD_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP4_FHD_LPM_BOUND;
-			emi_hpm_bound = EMI_LP4_FHD_HPM_BOUND;
-		} else if (h > 1300) {
-			/* HD+ */
-			emi_ulpm_bound = EMI_LP4_HDP_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP4_HDP_LPM_BOUND;
-			emi_hpm_bound = EMI_LP4_HDP_HPM_BOUND;
-		} else {
-			/* HD */
-			emi_ulpm_bound = EMI_LP4_HD_ULPM_BOUND;
-			emi_lpm_bound = EMI_LP4_HD_LPM_BOUND;
-			emi_hpm_bound = EMI_LP4_HD_HPM_BOUND;
-		}
+		emi_ulpm_bound = EMI_LP4_ULPM_BOUND;
+		emi_lpm_bound = EMI_LP4_LPM_BOUND;
+		emi_hpm_bound = EMI_LP4_HPM_BOUND;
 	}
-
-#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
-	emi_ulpm_bound -= HRT_UNIT_BPP;
-	emi_lpm_bound -= HRT_UNIT_BPP;
-	emi_hpm_bound -= HRT_UNIT_BPP;
-#endif
 
 	larb_lower_bound = LARB_LOWER_BOUND;
 	larb_upper_bound = LARB_UPPER_BOUND;
@@ -1378,7 +1208,7 @@ static int set_hrt_bound(void)
 
 	if (disp_helper_get_option(DISP_OPT_OVL_EXT_LAYER)) {
 		primary_max_input_layer_num = PRIMARY_HW_OVL_LAYER_NUM + PRIMARY_HW_OVL_2L_LAYER_NUM +
-			DISP_HW_OVL0_EXT_LAYER_NUM + DISP_HW_OVL0_2L_EXT_LAYER_NUM;
+			DISP_HW_OVL_EXT_LAYER_NUM * 2;
 #if 0
 		/* external and memory session no need more than 4 layers now */
 		secondary_max_input_layer_num = EXTERNAL_HW_OVL_LAYER_NUM + EXTERNAL_HW_OVL_2L_LAYER_NUM +

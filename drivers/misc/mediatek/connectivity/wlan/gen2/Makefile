@@ -53,6 +53,14 @@ else
     ccflags-y += -DCFG_SUPPORT_MET_PROFILING=0
 endif
 
+ifeq ($(CONFIG_MTK_TC10_FEATURE), y)
+    ccflags-y += -DCFG_TC10_FEATURE=1
+    ccflags-y += -DCFG_SKIP_MAC_INFO_CHECK
+    ccflags-y += -DCFG_SUPPORT_TX_POWER_BACK_OFF
+else
+    ccflags-y += -DCFG_TC10_FEATURE=0
+endif
+
 ifeq ($(CONFIG_MTK_TC1_FEATURE), y)
 ifeq ($(CONFIG_MTK_GPT_SCHEME_SUPPORT), y)
     ccflags-y += -I$(srctree)/drivers/misc/mediatek/tc1_interface/gpt
@@ -61,7 +69,7 @@ else
 endif
     ccflags-y += -DCFG_TC1_FEATURE=1
     ccflags-y += -DCFG_SUPPORT_CFG_FILE=1
-    ccflags-y += -DCFG_USE_AOSP_TETHERING_NAME
+    ccflags-y += -DCFG_SUPPORT_TX_POWER_BACK_OFF
 else
     ccflags-y += -DCFG_TC1_FEATURE=0
 endif
@@ -69,6 +77,7 @@ endif
 ifeq ($(CONFIG_MTK_TC10_FEATURE), y)
     ccflags-y += -DCFG_TC10_FEATURE=1
     ccflags-y += -DCFG_SKIP_MAC_INFO_CHECK
+    ccflags-y += -DCFG_SUPPORT_TX_POWER_BACK_OFF
     ccflags-y += -DCFG_USE_AOSP_TETHERING_NAME
 else
     ccflags-y += -DCFG_TC10_FEATURE=0
@@ -90,9 +99,6 @@ endif
 ifeq ($(CONFIG_ARCH_MT6753), y)
     MTK_SRAM_SIZE_OPTION=1
 endif
-ifeq ($(CONFIG_MACH_MT6763), y)
-    MTK_SRAM_SIZE_OPTION=2
-endif
 ifeq ($(CONFIG_ARCH_MT6580), y)
     MTK_SRAM_SIZE_OPTION=1
 endif
@@ -103,7 +109,7 @@ ifeq ($(CONFIG_ARCH_MT8163), y)
     MTK_SRAM_SIZE_OPTION=1
 endif
 ifeq ($(CONFIG_ARCH_MT8167), y)
-    MTK_SRAM_SIZE_OPTION=2
+    MTK_SRAM_SIZE_OPTION=1
 endif
 ccflags-y += -DCFG_SRAM_SIZE_OPTION=$(MTK_SRAM_SIZE_OPTION)
 
@@ -232,8 +238,7 @@ MGMT_OBJS += $(MGMT_DIR)p2p_assoc.o \
              $(MGMT_DIR)p2p_ie.o \
              $(MGMT_DIR)p2p_state.o \
              $(MGMT_DIR)wnm.o \
-             $(MGMT_DIR)wmm.o
-
+			 $(MGMT_DIR)wmm.o
 
 ifeq ($(CONFIG_MTK_WAPI_SUPPORT), y)
 MGMT_OBJS += $(MGMT_DIR)wapi.o
@@ -274,37 +279,47 @@ PLAT_OBJS := $(PLAT_DIR)plat_priv.o
 $(MODULE_NAME)-objs  += $(PLAT_OBJS)
 endif
 
-ifeq ($(CONFIG_MACH_MT6763), y)
-PLAT_OBJS := $(PLAT_DIR)plat_priv.o
-$(MODULE_NAME)-objs  += $(PLAT_OBJS)
+# ---------------------------------------------------
+# FW customization
+# ---------------------------------------------------
+FW_CUSTOMIZATION = y
+ifeq ($(FW_CUSTOMIZATION), y)
+    $(warning fw_config, $(FWCFG_DIR)fw_config.c)
+    ifneq ($(wildcard $(FWCFG_DIR)fw_config.c),)
+        $(warning fw_config exist, $(FWCFG_DIR))
+        COMMON_OBJS += $(MTK_PROJECT)/fw_config.o
+    endif
+    COMMON_OBJS += $(COMMON_DIR)fwcfg.o
+    ccflags-y += -DFW_CFG_SUPPORT
+    ifeq ($(TARGET_BUILD_VARIANT), eng)
+        ccflags-y += -DENABLED_IN_ENGUSERDEBUG
+    endif
+    ifeq ($(TARGET_BUILD_VARIANT), userdebug)
+        ccflags-y += -DENABLED_IN_ENGUSERDEBUG
+    endif
 endif
+# ---------------------------------------------------
 
 # ---------------------------------------------------
 # FW customization
 # ---------------------------------------------------
 FW_CUSTOMIZATION = y
 ifeq ($(FW_CUSTOMIZATION), y)
-    ifneq ($(wildcard $(FWCFG_DIR)fw_config.c),)
-        COMMON_OBJS += $(MTK_PROJECT)/fw_config.o
-    endif
-    COMMON_OBJS += $(COMMON_DIR)fwcfg.o
-    ccflags-y += -DFW_CFG_SUPPORT
+$(warning fw_config, $(FWCFG_DIR)fw_config.c)
+ifneq ($(wildcard $(FWCFG_DIR)fw_config.c),)
+$(warning fw_config exist, $(FWCFG_DIR))
+	COMMON_OBJS += $(MTK_PROJECT)/fw_config.o
+endif
+	COMMON_OBJS += $(COMMON_DIR)fwcfg.o
+	ccflags-y += -DFW_CFG_SUPPORT
+ifeq ($(TARGET_BUILD_VARIANT), eng)
     ccflags-y += -DENABLED_IN_ENGUSERDEBUG
 endif
-# ---------------------------------------------------
-# WLAN Parse BUILD VARINAT
-# ---------------------------------------------------
-ifeq ($(TARGET_BUILD_VARIANT), eng)
-    ccflags-y += -DWLAN_ENG_LOAD
-endif
 ifeq ($(TARGET_BUILD_VARIANT), userdebug)
-    ccflags-y += -DWLAN_USERDEBUG_LOAD
+    ccflags-y += -DENABLED_IN_ENGUSERDEBUG
 endif
-ifeq ($(TARGET_BUILD_VARIANT), user)
-    ccflags-y += -DWLAN_USER_LOAD
 endif
 # ---------------------------------------------------
-
 $(MODULE_NAME)-objs  += $(COMMON_OBJS)
 $(MODULE_NAME)-objs  += $(NIC_OBJS)
 $(MODULE_NAME)-objs  += $(OS_OBJS)

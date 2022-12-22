@@ -41,10 +41,10 @@
  */
 
 /*=============================================================*/
+static DEFINE_MUTEX(ts_tsx_timer_lock);
+
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
-static DEFINE_SEMAPHORE(sem_mutex);
-static int isTimerCancelled;
 
 
 static unsigned int interval;	/* seconds, 0 : no auto polling */
@@ -340,7 +340,6 @@ static ssize_t mtktstsx_write(struct file *file, const char __user *buffer, size
 		&ptr_mtktstsx_data->trip[9], &ptr_mtktstsx_data->t_type[9], ptr_mtktstsx_data->bind9,
 		&ptr_mtktstsx_data->time_msec) == 32) {
 
-		down(&sem_mutex);
 		mtktstsx_dprintk("[mtktstsx_write] mtktstsx_unregister_thermal\n");
 		mtktstsx_unregister_thermal();
 
@@ -351,7 +350,6 @@ static ssize_t mtktstsx_write(struct file *file, const char __user *buffer, size
 			#endif
 			mtktspmic_dprintk("[mtktstsx_write] bad argument\n");
 			kfree(ptr_mtktstsx_data);
-			up(&sem_mutex);
 			return -EINVAL;
 		}
 
@@ -400,7 +398,6 @@ static ssize_t mtktstsx_write(struct file *file, const char __user *buffer, size
 
 		mtktstsx_dprintk("[mtktstsx_write] mtktstsx_register_thermal\n");
 		mtktstsx_register_thermal();
-		up(&sem_mutex);
 		kfree(ptr_mtktstsx_data);
 		return count;
 	}
@@ -417,15 +414,12 @@ static void mtkts_tsx_cancel_thermal_timer(void)
 	/* pr_debug("mtkts_tsx_cancel_thermal_timer\n"); */
 
 	/* stop thermal framework polling when entering deep idle */
-	if (down_trylock(&sem_mutex))
-		return;
+	if (mutex_trylock(&ts_tsx_timer_lock)) {
+		if (thz_dev)
+			cancel_delayed_work(&(thz_dev->poll_queue));
 
-	if (thz_dev) {
-		cancel_delayed_work(&(thz_dev->poll_queue));
-		isTimerCancelled = 1;
+		mutex_unlock(&ts_tsx_timer_lock);
 	}
-
-	up(&sem_mutex);
 }
 
 
@@ -433,19 +427,13 @@ static void mtkts_tsx_start_thermal_timer(void)
 {
 	/* pr_debug("mtkts_tsx_start_thermal_timer\n"); */
 	/* resume thermal framework polling when leaving deep idle */
-	if (!isTimerCancelled)
-		return;
+	if (mutex_trylock(&ts_tsx_timer_lock)) {
+		if (thz_dev != NULL && interval != 0)
+			mod_delayed_work(system_freezable_wq, &(thz_dev->poll_queue),
+				round_jiffies(msecs_to_jiffies(1000)));
 
-	isTimerCancelled = 0;
-
-	if (down_trylock(&sem_mutex))
-		return;
-
-	if (thz_dev != NULL && interval != 0)
-		mod_delayed_work(system_freezable_power_efficient_wq,
-				&(thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(1000)));
-
-	up(&sem_mutex);
+		mutex_unlock(&ts_tsx_timer_lock);
+	}
 }
 
 /*
@@ -462,8 +450,10 @@ static int mtktstsx_register_thermal(void)
 	mtktstsx_dprintk("[mtktstsx_register_thermal]\n");
 
 	/* trips : trip 0~2 */
+	mutex_lock(&ts_tsx_timer_lock);
 	thz_dev = mtk_thermal_zone_device_register("mtktstsx", num_trip, NULL,
 						   &mtktstsx_dev_ops, 0, 0, 0, interval * 1000);
+	mutex_unlock(&ts_tsx_timer_lock);
 
 	return 0;
 }
@@ -480,10 +470,12 @@ static void mtktstsx_unregister_thermal(void)
 {
 	mtktstsx_dprintk("[mtktstsx_unregister_thermal]\n");
 
+	mutex_lock(&ts_tsx_timer_lock);
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
 		thz_dev = NULL;
 	}
+	mutex_unlock(&ts_tsx_timer_lock);
 }
 
 static int mtktstsx_open(struct inode *inode, struct file *file)

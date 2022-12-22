@@ -39,6 +39,4 @@ struct vibrator_hw {
 #endif
 };
 
-void init_cust_vibrator_dtsi(struct platform_device *pdev);
-
 #endif

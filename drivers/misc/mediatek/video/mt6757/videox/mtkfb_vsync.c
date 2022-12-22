@@ -160,7 +160,6 @@ static int mtkfb_vsync_probe(struct platform_device *pdev)
 {
 	struct class_device;
 	struct class_device *class_dev = NULL;
-	int ret = -1;
 
 	pr_err("\n=== MTKFB_VSYNC probe ===\n");
 
@@ -175,12 +174,7 @@ static int mtkfb_vsync_probe(struct platform_device *pdev)
 	mtkfb_vsync_cdev->owner = THIS_MODULE;
 	mtkfb_vsync_cdev->ops = &mtkfb_vsync_fops;
 
-	ret = cdev_add(mtkfb_vsync_cdev, mtkfb_vsync_devno, 1);
-
-	if (ret != 0) {
-		VSYNC_ERR("cdev_add Failed!\n");
-		return -EFAULT;
-	}
+	cdev_add(mtkfb_vsync_cdev, mtkfb_vsync_devno, 1);
 
 	mtkfb_vsync_class = class_create(THIS_MODULE, MTKFB_VSYNC_DEVNAME);
 	class_dev =

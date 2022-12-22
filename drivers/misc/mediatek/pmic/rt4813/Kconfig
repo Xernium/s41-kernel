@@ -1,0 +1,9 @@
+config RT4813_BOOST
+	bool "Support for RT5081 PMU part"
+	depends on I2C
+	help
+	  Select Y
+	  to enable
+	  support
+	  for RT4813 BOOST.
+

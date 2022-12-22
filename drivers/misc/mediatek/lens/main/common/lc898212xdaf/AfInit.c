@@ -1,3 +1,16 @@
+/*
+* Copyright (C) Onsemi Co.,Ltd. All rights reserved.
+
+* This software is licensed under the terms of the GNU General Public
+* License version 2, as published by the Free Software Foundation, and
+* may be copied, distributed, and modified under those terms.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
 /* ******************************************************************************** */
 /*  */
 /* LC89821x Initialize Module */
@@ -14,6 +27,9 @@
 #include	"AfInit.h"
 #include	"AfData.h"
 
+/*-----------------------------
+	Definations
+------------------------------*/
 #define		REG_ADDR_START		0x80	/* REG Start address */
 
 
@@ -44,10 +60,10 @@ void AfInit(unsigned char hall_off, unsigned char hall_bias)
 
 			if (Init_Table_TVC820[i].addr >= REG_ADDR_START)
 				RegWriteA(Init_Table_TVC820[i].addr,
-					  (unsigned char)(Init_Table_TVC820[i].data & 0x00ff));
+					(unsigned char)(Init_Table_TVC820[i].data & 0x00ff));
 			else
 				RamWriteA(Init_Table_TVC820[i].addr,
-					  (unsigned short)Init_Table_TVC820[i].data);
+					(unsigned short)Init_Table_TVC820[i].data);
 		}
 	} else {
 		/* IMX214, IMX258 */
@@ -61,10 +77,10 @@ void AfInit(unsigned char hall_off, unsigned char hall_bias)
 
 			if (Init_Table_TVC651[i].addr >= REG_ADDR_START)
 				RegWriteA(Init_Table_TVC651[i].addr,
-					  (unsigned char)(Init_Table_TVC651[i].data & 0x00ff));
+					(unsigned char)(Init_Table_TVC651[i].data & 0x00ff));
 			else
 				RamWriteA(Init_Table_TVC651[i].addr,
-					  (unsigned short)Init_Table_TVC651[i].data);
+					(unsigned short)Init_Table_TVC651[i].data);
 		}
 	}
 

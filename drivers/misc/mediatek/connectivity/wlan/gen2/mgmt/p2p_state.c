@@ -32,7 +32,7 @@ p2pStateInit_IDLE(IN P_ADAPTER_T prAdapter,
 			*peNextState = P2P_STATE_REQING_CHANNEL;
 
 		} else
-			cnmTimerStartTimer(prAdapter, &(prAdapter->rP2pFsmTimeoutTimer), P2P_AP_CHNL_HOLD_TIME_MS);
+			cnmTimerStartTimer(prAdapter, &(prAdapter->rP2pFsmTimeoutTimer), 5000);
 
 	} while (FALSE);
 
@@ -107,9 +107,6 @@ p2pStateAbort_CHNL_ON_HAND(IN P_ADAPTER_T prAdapter,
 
 	do {
 		ASSERT_BREAK((prAdapter != NULL) && (prP2pFsmInfo != NULL));
-		if (prP2pFsmInfo->eListenExted != P2P_DEV_EXT_LISTEN_ING &&
-			eNextState == P2P_STATE_CHNL_ON_HAND)
-			WARN_ON(1);
 
 		prChnlReqInfo = &(prP2pFsmInfo->rChnlReqInfo);
 
@@ -242,7 +239,6 @@ p2pStateAbort_AP_CHANNEL_DETECT(IN P_ADAPTER_T prAdapter,
 			prChnlReqInfo->ucReqChnlNum = prP2pSpecificBssInfo->ucPreferredChannel = ucPreferedChnl;
 			prChnlReqInfo->eBand = prP2pSpecificBssInfo->eRfBand = eBand;
 			prChnlReqInfo->eChnlSco = prP2pSpecificBssInfo->eRfSco = eSco;
-			prChnlReqInfo->u4MaxInterval = P2P_AP_CHNL_HOLD_TIME_MS;
 		} else {
 			p2pFuncCancelScan(prAdapter, &(prP2pFsmInfo->rScanReqInfo));
 		}

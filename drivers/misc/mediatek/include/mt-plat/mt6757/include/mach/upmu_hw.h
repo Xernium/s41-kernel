@@ -11582,7 +11582,7 @@
 #define MT6351_PMIC_VRTC_CAP_SEL_MASK                          0x1
 #define MT6351_PMIC_VRTC_CAP_SEL_SHIFT                         12
 
-enum MT6351_FLAGS_LIST_ENUM {
+typedef enum {
 	MT6351_PMIC_THR_DET_DIS,
 	MT6351_PMIC_THR_TEST,
 	MT6351_PMIC_THR_HWPDN_EN,
@@ -15097,9 +15097,9 @@ enum MT6351_FLAGS_LIST_ENUM {
 	MT6351_PMIC_VRTC_PWM_L_DUTY,
 	MT6351_PMIC_VRTC_PWM_H_DUTY,
 	MT6351_PMIC_VRTC_CAP_SEL,
-};
+} MT6351_FLAGS_LIST_ENUM;
 
-enum PMU_FLAGS_LIST {
+typedef enum {
 	PMIC_THR_DET_DIS =                          MT6351_PMIC_THR_DET_DIS,
 	PMIC_THR_TEST =                             MT6351_PMIC_THR_TEST,
 	PMIC_THR_HWPDN_EN =                         MT6351_PMIC_THR_HWPDN_EN,
@@ -18615,18 +18615,14 @@ enum PMU_FLAGS_LIST {
 	PMIC_VRTC_PWM_H_DUTY =                      MT6351_PMIC_VRTC_PWM_H_DUTY,
 	PMIC_VRTC_CAP_SEL =                         MT6351_PMIC_VRTC_CAP_SEL,
 	PMU_COMMAND_MAX
-};
+} PMU_FLAGS_LIST_ENUM;
 
-#define PMU_FLAGS_LIST_ENUM enum PMU_FLAGS_LIST
-
-struct pmu_flag_table_entry_t {
+typedef struct {
 	PMU_FLAGS_LIST_ENUM flagname;
 	unsigned short offset;
 	unsigned short mask;
 	unsigned char shift;
-};
-
-#define PMU_FLAG_TABLE_ENTRY struct pmu_flag_table_entry_t
+} PMU_FLAG_TABLE_ENTRY;
 #endif /*--CONFIG_MTK_PMIC_NEW_ARCH--*/
 
 #endif /* _MT_PMIC_UPMU_HW_H_ */

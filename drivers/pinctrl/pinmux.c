@@ -526,6 +526,11 @@ void pinmux_disable_setting(struct pinctrl_setting const *setting)
 				 "deactivating group %s - it is already "
 				 "used for some other setting",
 				 pins[i], desc->name, gname);
+
+			if (pins[i] == 151) {
+				dev_warn(pctldev->dev, "monkey debug: dump_stack for GPIO151");
+				dump_stack();
+			}
 		}
 	}
 }

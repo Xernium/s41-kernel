@@ -26,7 +26,6 @@
 #ifndef _HAL_H
 #define _HAL_H
 
-#include <gl_rst.h>
 /*******************************************************************************
 *                         C O M P I L E R   F L A G S
 ********************************************************************************
@@ -83,7 +82,7 @@ do { \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_MCR_RD access fail! 0x%x: 0x%x\n", \
 				(UINT_32) (_u4Offset), *((PUINT_32) (_pu4Value))); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
+			glResetTrigger(_prAdapter); \
 		} \
 	} else { \
 		DBGLOG(HAL, WARN, "ignore HAL_MCR_RD access! 0x%x\n", \
@@ -105,7 +104,7 @@ do { \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_MCR_WR access fail! 0x%x: 0x%x\n", \
 				(UINT_32) (_u4Offset), (UINT_32) (_u4Value)); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
+			glResetTrigger(_prAdapter); \
 		} \
 	} else { \
 		DBGLOG(HAL, WARN, "ignore HAL_MCR_WR access! 0x%x: 0x%x\n", \
@@ -115,6 +114,7 @@ do { \
 
 #define HAL_PORT_RD(_prAdapter, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize) \
 { \
+	/*fgResult = FALSE; */\
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
@@ -129,7 +129,7 @@ do { \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_PORT_RD access fail! 0x%x\n", \
 				(UINT_32) (_u4Port)); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
+			glResetTrigger(_prAdapter); \
 			break; \
 		} \
 	} else { \
@@ -140,6 +140,7 @@ do { \
 
 #define HAL_PORT_WR(_prAdapter, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize) \
 { \
+	/*fgResult = FALSE; */\
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
@@ -154,7 +155,7 @@ do { \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_PORT_WR access fail! 0x%x\n", \
 				(UINT_32) (_u4Port)); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
+			glResetTrigger(_prAdapter); \
 			break; \
 		} \
 	} else { \
@@ -231,11 +232,7 @@ do { \
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
-	if (kalIsResetting() || kalIsResetTriggered()) { \
-		DBGLOG(HAL, WARN, "Whole chip reset %s !! ignore HAL_MCR_HIF_RD access!!\n", \
-		       kalIsResetting() ? "on-going" : "triggered"); \
-	} else \
-		kalDevRegRead(_prAdapter->prGlueInfo, _u4Offset, _pu4Value); \
+	kalDevRegRead(_prAdapter->prGlueInfo, _u4Offset, _pu4Value); \
 } while (0)
 
 #define HAL_MCR_WR(_prAdapter, _u4Offset, _u4Value) \
@@ -258,11 +255,7 @@ do { \
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
-	if (kalIsResetting() || kalIsResetTriggered()) {\
-		DBGLOG(HAL, WARN, "Whole chip reset %s !! ignore HAL_MCR_HIF_WR access!!\n", \
-		       kalIsResetting() ? "on-going" : "triggered"); \
-	} else \
-		kalDevRegWrite(_prAdapter->prGlueInfo, _u4Offset, _u4Value); \
+	kalDevRegWrite(_prAdapter->prGlueInfo, _u4Offset, _u4Value); \
 } while (0)
 
 #define HAL_PORT_RD(_prAdapter, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize) \
@@ -270,15 +263,7 @@ do { \
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
-	if (_prAdapter->fgIsFwOwn == TRUE) { \
-		DBGLOG(HAL, ERROR, "Power control is FW own!! ignore HAL_PORT_RD access!!\n"); \
-	} else { \
-		if (kalIsResetting() || kalIsResetTriggered()) { \
-			DBGLOG(HAL, WARN, "Whole chip reset %s !! ignore HAL_PORT_RD access!!\n", \
-			       kalIsResetting() ? "on-going" : "triggered"); \
-		} else if (!kalDevPortRead(_prAdapter->prGlueInfo, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize)) \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_DO_CORE_DUMP); \
-	} \
+	kalDevPortRead(_prAdapter->prGlueInfo, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize); \
 } while (0)
 
 #define HAL_PORT_WR(_prAdapter, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize) \
@@ -286,15 +271,7 @@ do { \
 	if (_prAdapter->rAcpiState == ACPI_STATE_D3) { \
 		ASSERT(0); \
 	} \
-	if (_prAdapter->fgIsFwOwn == TRUE) { \
-		DBGLOG(HAL, ERROR, "Power control is FW own!! ignore HAL_PORT_WR access!!\n"); \
-	} else { \
-		if (kalIsResetting() || kalIsResetTriggered()) { \
-			DBGLOG(HAL, WARN, "Whole chip reset %s !! ignore HAL_PORT_WR access!!\n", \
-			       kalIsResetting() ? "on-going" : "triggered"); \
-		} else if (!kalDevPortWrite(_prAdapter->prGlueInfo, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize)) \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_DO_CORE_DUMP); \
-	} \
+	kalDevPortWrite(_prAdapter->prGlueInfo, _u4Port, _u4Len, _pucBuf, _u4ValidBufSize); \
 } while (0)
 
 #endif /* #if defined(_HIF_SDIO) */
@@ -311,9 +288,8 @@ do { \
 
 #define HAL_WRITE_TX_PORT(_prAdapter, _u4Len, _pucBuf, _u4ValidBufSize) \
 { \
-	if ((_u4ValidBufSize - ALIGN_4(_u4Len)) >= sizeof(UINT_32)) { \
-		/* Fill with single dword of zero as TX-aggregation termination */ \
-		/* for block mode transaction that Tx-aggregation length may be less than block size */ \
+	if ((_u4ValidBufSize - _u4Len) >= sizeof(UINT_32)) { \
+		/* fill with single dword of zero as TX-aggregation termination */ \
 		*(PUINT_32) (&((_pucBuf)[ALIGN_4(_u4Len)])) = 0; \
 	} \
 	HAL_PORT_WR(_prAdapter, \
@@ -362,14 +338,14 @@ do { \
 		} while (u4Count); \
 	}
 
-#define HAL_GET_CHIP_ID_VER(_prAdapter, pu2ChipId, pucRevId) \
+#define HAL_GET_CHIP_ID_VER(_prAdapter, pu2ChipId, pu2Version) \
 { \
 	UINT_32 u4Value; \
 	HAL_MCR_RD(_prAdapter, \
 		MCR_WCIR, \
 		&u4Value); \
 	*pu2ChipId = (UINT_16)(u4Value & WCIR_CHIP_ID); \
-	*pucRevId = (UINT_8)(u4Value & WCIR_REVISION_ID) >> 16; \
+	*pu2Version = (UINT_16)(u4Value & WCIR_REVISION_ID) >> 16; \
 }
 
 #define HAL_WAIT_WIFI_FUNC_READY(_prAdapter) \

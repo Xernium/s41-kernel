@@ -44,26 +44,21 @@
 /* ============================================================*/
 /* typedef*/
 /* ============================================================*/
-
-#define BATTERY_PROFILE_STRUCT struct battery_profile_struct
-
-struct battery_profile_struct {
+typedef struct _BATTERY_PROFILE_STRUCT {
 	signed int percentage;
 	signed int voltage;
-};
+	} BATTERY_PROFILE_STRUCT, *BATTERY_PROFILE_STRUCT_P;
 
-#define R_PROFILE_STRUCT struct r_profile_struct
-
-struct r_profile_struct {
+typedef struct _R_PROFILE_STRUCT {
 	signed int resistance; /* Ohm*/
 	signed int voltage;
-};
+} R_PROFILE_STRUCT, *R_PROFILE_STRUCT_P;
 
-enum PROFILE_TEMPERATURE {
+typedef enum {
 	T1_0C,
 	T2_25C,
 	T3_50C
-};
+} PROFILE_TEMPERATURE;
 
 
 
@@ -985,10 +980,10 @@ R_PROFILE_STRUCT r_profile_temperature[] = {
 /* function prototype*/
 /* ============================================================*/
 int fgauge_get_saddles(void);
-struct battery_profile_struct *fgauge_get_profile(unsigned int temperature);
+BATTERY_PROFILE_STRUCT_P fgauge_get_profile(unsigned int temperature);
 
 int fgauge_get_saddles_r_table(void);
-struct r_profile_struct *fgauge_get_profile_r_table(unsigned int temperature);
+R_PROFILE_STRUCT_P fgauge_get_profile_r_table(unsigned int temperature);
 
 #endif
 

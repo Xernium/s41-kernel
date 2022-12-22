@@ -108,12 +108,12 @@ PowerCust PowerCustList = {
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for AVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for DVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_Low},	/* for DOVDD; */
-		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_Low},	/* for AFVDD; */
+		{GPIO_SUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for AFVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for SUB_AVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_Low},	/* for SUB_DVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for SUB_DOVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for MAIN2_AVDD; */
-		{GPIO_SUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for MAIN2_DVDD; */
+		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for MAIN2_DVDD; */
 		{GPIO_UNSUPPORTED, GPIO_MODE_GPIO, Vol_High},	/* for MAIN2_DOVDD; */
 		/* {GPIO_SUPPORTED, GPIO_MODE_GPIO, Vol_Low}, */
 	}
@@ -123,6 +123,16 @@ PowerCust PowerCustList = {
 
 PowerUp PowerOnList = {
 	{
+		{SENSOR_DRVNAME_OV8856_MIPI_RAW,
+			{
+				{SensorMCLK, Vol_High, 0},
+				{RST, Vol_Low, 20},
+				{DOVDD, Vol_1800, 0},
+				{AVDD, Vol_2800, 0},
+				{DVDD, Vol_1200, 0},
+				{RST, Vol_High, 100},
+			},
+		},
 #if defined(IMX386_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX386_MIPI_RAW,
 			{
@@ -138,7 +148,6 @@ PowerUp PowerOnList = {
 			},
 		},
 #endif
-#if defined(IMX338_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX338_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -152,35 +161,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 1}
 			},
 		},
-#endif
-#if defined(IMX376_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_IMX376_MIPI_RAW,
-		{
-			{SensorMCLK, Vol_High, 0},
-			{AVDD, Vol_2800, 1},
-			{DOVDD, Vol_1800, 1},
-			{DVDD, Vol_1200, 5},
-			{RST, Vol_High, 2}
-		},
-	},
-#endif
-#if defined(S5K3P8SP_MIPI_RAW)
-		{SENSOR_DRVNAME_S5K3P8SP_MIPI_RAW,
-			{
-				{SensorMCLK, Vol_High, 0},
-				{DOVDD, Vol_1800, 0},
-				{AVDD, Vol_2800, 0},
-				{DVDD, Vol_1000, 0},
-				{AFVDD, Vol_2800, 5},
-				{PDN, Vol_Low, 4},
-				{PDN, Vol_High, 0},
-				{RST, Vol_Low, 1},
-				{RST, Vol_High, 0},
-			},
-		},
-#endif
-#if defined(S5K3M2_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K3M2_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -194,23 +174,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0},
 			},
 		},
-#endif
-#if defined(S5K3M3_MIPI_RAW)
-		{SENSOR_DRVNAME_S5K3M3_MIPI_RAW,
-			{
-				{SensorMCLK, Vol_High, 0},
-				{PDN, Vol_Low, 0},
-				{RST, Vol_Low, 0},
-				{DOVDD, Vol_1800, 0},
-				{AVDD, Vol_2800, 0},
-				{DVDD, Vol_1000, 0},
-				{AFVDD, Vol_2800, 1},
-				{PDN, Vol_High, 0},
-				{RST, Vol_High, 2},
-			},
-		},
-#endif
-#if defined(S5K3P3SX_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K3P3SX_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -224,8 +187,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0},
 			},
 		},
-#endif
-#if defined(S5K5E2YA_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K5E2YA_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -239,7 +200,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0},
 			},
 		},
-#endif
 #if defined(OV16880_MIPI_RAW)
 		{SENSOR_DRVNAME_OV16880_MIPI_RAW,
 			{
@@ -255,7 +215,6 @@ PowerUp PowerOnList = {
 			},
 		},
 #endif
-#if defined(S5K2P8_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K2P8_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -269,8 +228,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0},
 			},
 		},
-#endif
-#if defined(IMX258_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX258_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -284,7 +241,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
 #if defined(IMX258_MIPI_MONO)
 		{SENSOR_DRVNAME_IMX258_MIPI_MONO,
 			{
@@ -300,7 +256,6 @@ PowerUp PowerOnList = {
 			},
 		},
 #endif
-#if defined(OV8858_MIPI_RAW)
 		{SENSOR_DRVNAME_OV8858_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -314,8 +269,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 2}
 			},
 		},
-#endif
-#if defined(S5K2X8_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K2X8_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -329,8 +282,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
-#if defined(IMX214_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX214_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -344,8 +295,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
-#if defined(IMX214_MIPI_MONO)
 		{SENSOR_DRVNAME_IMX214_MIPI_MONO,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -359,8 +308,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
-#if defined(IMX230_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX230_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -374,8 +321,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
-#if defined(S5K3L8_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K3L8_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -389,7 +334,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
 #if defined(IMX362_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX362_MIPI_RAW,
 			{
@@ -405,7 +349,6 @@ PowerUp PowerOnList = {
 			},
 		},
 #endif
-#if defined(S5K2L7_MIPI_RAW)
 		{SENSOR_DRVNAME_S5K2L7_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -419,8 +362,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 5}
 			},
 		},
-#endif
-#if defined(IMX318_MIPI_RAW)
 		{SENSOR_DRVNAME_IMX318_MIPI_RAW,
 			{
 				{SensorMCLK, Vol_High, 0},
@@ -434,7 +375,6 @@ PowerUp PowerOnList = {
 				{RST, Vol_High, 0}
 			},
 		},
-#endif
 #if defined(OV8865_MIPI_RAW)
 		{SENSOR_DRVNAME_OV8865_MIPI_RAW,
 			{
@@ -752,8 +692,8 @@ int mtkcam_gpio_init(struct platform_device *pdev)
 int mtkcam_gpio_set(int PinIdx, int PwrType, int Val)
 {
 	int ret = 0;
-	/* static signed int mAVDD_usercounter = 0; */
-	static signed int mDVDD_usercounter;
+	static signed int mAVDD_usercounter = 0;
+	static signed int mAFVDD_usercounter = 0;
 
 	if (IS_ERR(camctrl))
 		return -1;
@@ -813,31 +753,43 @@ int mtkcam_gpio_set(int PinIdx, int PwrType, int Val)
 				       PinIdx, Val);
 		}
 		break;
-	case MAIN2_DVDD:
+	case AVDD:
 	case SUB_AVDD:
-	case MAIN2_AVDD:
-		/*SUB_DVDD & SUB_AVDD MAIN2_AVDD use same cotrol GPIO */
-		PK_DBG("mDVDD_usercounter(%d)\n", mDVDD_usercounter);
-		if (Val == 0 && !IS_ERR(cam_ldo_vcamd_l)) {
-			mDVDD_usercounter--;
-			if (mDVDD_usercounter <= 0) {
-				if (mDVDD_usercounter < 0)
+		/*AVDD & SUB_AVDD use same cotrol GPIO */
+		PK_DBG("mAVDD_usercounter(%d)\n", mAVDD_usercounter);
+		if (Val == 0 && !IS_ERR(cam_ldo_vcama_l)) {
+			mAVDD_usercounter--;
+			if (mAVDD_usercounter <= 0) {
+				if (mAVDD_usercounter < 0)
 					PK_ERR("Please check AVDD pin control\n");
 
-				mDVDD_usercounter = 0;
-				pinctrl_select_state(camctrl, cam_ldo_vcamd_l);
+				mAVDD_usercounter = 0;
+				pinctrl_select_state(camctrl, cam_ldo_vcama_l);
 			}
 
-		} else if (Val == 1 && !IS_ERR(cam_ldo_vcamd_h)) {
-			mDVDD_usercounter++;
-			pinctrl_select_state(camctrl, cam_ldo_vcamd_h);
+		} else if (Val == 1 && !IS_ERR(cam_ldo_vcama_h)) {
+			mAVDD_usercounter++;
+			pinctrl_select_state(camctrl, cam_ldo_vcama_h);
 		}
 		break;
-	case DVDD:
-	case DOVDD:
 	case AFVDD:
 	default:
-		PK_ERR("PwrType(%d) is invalid !!\n", PwrType);
+		PK_DBG("mAFVDD_usercounter(%d)\n", mAFVDD_usercounter);
+		if (Val == 0 && !IS_ERR(cam_ldo_vcamaf_l)) {
+			mAFVDD_usercounter--;
+			if (mAFVDD_usercounter <= 0) {
+				if (mAFVDD_usercounter < 0)
+					PK_ERR("Please check AVDD pin control\n");
+
+				mAFVDD_usercounter = 0;
+				pinctrl_select_state(camctrl, cam_ldo_vcamaf_l);
+			}
+
+		} else if (Val == 1 && !IS_ERR(cam_ldo_vcamaf_h)) {
+			mAFVDD_usercounter++;
+			pinctrl_select_state(camctrl, cam_ldo_vcamaf_h);
+		}
+		break;
 		break;
 	};
 
@@ -863,7 +815,8 @@ BOOL hwpoweron(PowerInformation pwInfo, char *mode_name)
 				}
 			}
 		} else if (pinSetIdx == 1) {
-			if (PowerCustList.PowerCustInfo[CUST_SUB_AVDD].Gpio_Pin == GPIO_UNSUPPORTED) {
+			if (PowerCustList.PowerCustInfo[CUST_SUB_AVDD].Gpio_Pin == GPIO_UNSUPPORTED
+				&& get_cei_hw_id() != 0) {
 				if (_hwPowerOn(SUB_AVDD, pwInfo.Voltage) != TRUE) {
 					PK_ERR("[CAMERA SENSOR] Fail to enable analog power1\n");
 					return FALSE;
@@ -875,7 +828,8 @@ BOOL hwpoweron(PowerInformation pwInfo, char *mode_name)
 				}
 			}
 		} else {
-			if (PowerCustList.PowerCustInfo[CUST_AVDD].Gpio_Pin == GPIO_UNSUPPORTED) {
+			if (PowerCustList.PowerCustInfo[CUST_AVDD].Gpio_Pin == GPIO_UNSUPPORTED
+				&& get_cei_hw_id() != 0) {
 				if (_hwPowerOn(pwInfo.PowerType, pwInfo.Voltage) != TRUE) {
 					PK_ERR("[CAMERA SENSOR] Fail to enable analog power0\n");
 					return FALSE;
@@ -1024,7 +978,8 @@ BOOL hwpowerdown(PowerInformation pwInfo, char *mode_name)
 				}
 			}
 		} else if (pinSetIdx == 1) {
-			if (PowerCustList.PowerCustInfo[CUST_SUB_AVDD].Gpio_Pin == GPIO_UNSUPPORTED) {
+			if (PowerCustList.PowerCustInfo[CUST_SUB_AVDD].Gpio_Pin == GPIO_UNSUPPORTED
+				&& get_cei_hw_id() != 0) {
 				if (_hwPowerDown(SUB_AVDD) != TRUE) {
 					PK_ERR("[CAMERA SENSOR] Fail to diable analog power1\n");
 					return FALSE;
@@ -1036,7 +991,8 @@ BOOL hwpowerdown(PowerInformation pwInfo, char *mode_name)
 				}
 			}
 		} else {
-			if (PowerCustList.PowerCustInfo[CUST_AVDD].Gpio_Pin == GPIO_UNSUPPORTED) {
+			if (PowerCustList.PowerCustInfo[CUST_AVDD].Gpio_Pin == GPIO_UNSUPPORTED
+				&& get_cei_hw_id() != 0) {
 				if (_hwPowerDown(AVDD) != TRUE) {
 					PK_ERR("[CAMERA SENSOR]Fail to diable analog power0\n");
 					return FALSE;
@@ -1162,20 +1118,20 @@ int kdCISModulePowerOn(CAMERA_DUAL_CAMERA_SENSOR_ENUM SensorIdx, char *currSenso
 	else if (SensorIdx == DUAL_CAMERA_MAIN_2_SENSOR)
 		pinSetIdx = 2;
 
-	if (currSensorName && (strcmp(currSensorName, SENSOR_DRVNAME_OV5670_MIPI_RAW) == 0)) {
+	if (currSensorName && (strcmp(currSensorName, "ov5670mipiraw") == 0)) {
 		if (pinSetIdx == 1)
 			goto _kdCISModulePowerOn_exit_;
 	}
 
-	if (currSensorName && (strcmp(currSensorName, SENSOR_DRVNAME_IMX258_MIPI_RAW) == 0)) {
+	if (currSensorName && (strcmp(currSensorName, "imx258mipiraw") == 0)) {
 		if (pinSetIdx == 1)
 			goto _kdCISModulePowerOn_exit_;
 	}
-	if (currSensorName && (strcmp(currSensorName, SENSOR_DRVNAME_IMX258_MIPI_MONO) == 0)) {
+	if (currSensorName && (strcmp(currSensorName, "imx258mipimono") == 0)) {
 		if (pinSetIdx == 1)
 			goto _kdCISModulePowerOn_exit_;
 	}
-	if (currSensorName && (strcmp(currSensorName, SENSOR_DRVNAME_IMX258_MIPI_RAW) == 0)) {
+	if (currSensorName && (strcmp(currSensorName, "imx258mipiraw") == 0)) {
 		if (pinSetIdx == 2)
 			goto _kdCISModulePowerOn_exit_;
 	}

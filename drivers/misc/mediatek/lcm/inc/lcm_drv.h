@@ -624,12 +624,6 @@ typedef struct {
 
 	unsigned int ext_te_edge;
 	unsigned int eint_disable;
-
-	unsigned int IsCphy;
-	unsigned int PHY_SEL0;
-	unsigned int PHY_SEL1;
-	unsigned int PHY_SEL2;
-	unsigned int PHY_SEL3;
 } LCM_DSI_PARAMS;
 
 /* --------------------------------------------------------------------------- */
@@ -646,7 +640,6 @@ typedef struct {
 	unsigned int height;
 	unsigned int virtual_width;
 	unsigned int virtual_height;
-	unsigned int density;
 	unsigned int io_select_mode;	/* DBI or DPI should select IO mode according to chip spec */
 
 	/* particular parameters */
@@ -659,14 +652,6 @@ typedef struct {
 	unsigned int physical_height_um;	/* length: um, for more precise precision */
 	unsigned int od_table_size;
 	void *od_table;
-	unsigned int max_refresh_rate;
-	unsigned int min_refresh_rate;
-
-#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
-	unsigned int corner_pattern_width;
-	unsigned int corner_pattern_height;
-#endif
-
 } LCM_PARAMS;
 
 
@@ -678,7 +663,7 @@ typedef struct {
 #define MIN(x, y)   (((x) <= (y)) ? (x) : (y))
 #endif				/* MIN */
 
-#define INIT_SIZE			(640)
+#define INIT_SIZE			(512)
 #define COMPARE_ID_SIZE	(32)
 #define SUSPEND_SIZE		(32)
 #define BACKLIGHT_SIZE		(32)
@@ -773,7 +758,6 @@ typedef struct {
 	void (*set_reset_pin)(unsigned int value);
 	void (*set_chip_select)(unsigned int value);
 	int (*set_gpio_out)(unsigned int gpio, unsigned int value);
-	void (*set_te_pin)(void);
 
 	void (*udelay)(unsigned int us);
 	void (*mdelay)(unsigned int ms);
@@ -888,11 +872,5 @@ unsigned char which_lcd_module_triple(void);
 int lcm_vgp_supply_enable(void);
 int lcm_vgp_supply_disable(void);
 extern LCM_DSI_MODE_CON lcm_dsi_mode;
-
-extern int display_bias_enable(void);
-extern int display_bias_disable(void);
-extern int display_bias_regulator_init(void);
-
-
 
 #endif /* __LCM_DRV_H__ */

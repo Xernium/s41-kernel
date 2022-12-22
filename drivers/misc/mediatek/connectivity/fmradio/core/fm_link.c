@@ -28,7 +28,7 @@ static struct fm_trace_fifo_t *cmd_fifo;
 
 static struct fm_trace_fifo_t *evt_fifo;
 
-static signed int (*whole_chip_reset)(signed int sta);
+static fm_s32 (*whole_chip_reset)(fm_s32 sta);
 
 static void WCNfm_wholechip_rst_cb(ENUM_WMTDRV_TYPE_T src,
 				   ENUM_WMTDRV_TYPE_T dst, ENUM_WMTMSG_TYPE_T type, void *buf, unsigned int sz)
@@ -65,9 +65,9 @@ static void WCNfm_wholechip_rst_cb(ENUM_WMTDRV_TYPE_T src,
 	}
 }
 
-signed int fm_link_setup(void *data)
+fm_s32 fm_link_setup(void *data)
 {
-	signed int ret = 0;
+	fm_s32 ret = 0;
 
 	link_event = fm_zalloc(sizeof(struct fm_link_event));
 	if (!link_event) {
@@ -116,7 +116,7 @@ failed:
 	return ret;
 }
 
-signed int fm_link_release(void)
+fm_s32 fm_link_release(void)
 {
 
 	fm_trace_fifo_release(evt_fifo);
@@ -136,7 +136,7 @@ signed int fm_link_release(void)
  * @val - the pointer of target buf
  * If success, return 0; else error code
  */
-signed int fm_ctrl_rx(unsigned char addr, unsigned short *val)
+fm_s32 fm_ctrl_rx(fm_u8 addr, fm_u16 *val)
 {
 	return 0;
 }
@@ -148,7 +148,7 @@ signed int fm_ctrl_rx(unsigned char addr, unsigned short *val)
  * @val - value will be writed in the rigister
  * If success, return 0; else error code
  */
-signed int fm_ctrl_tx(unsigned char addr, unsigned short val)
+fm_s32 fm_ctrl_tx(fm_u8 addr, fm_u16 val)
 {
 	return 0;
 }
@@ -162,10 +162,10 @@ signed int fm_ctrl_tx(unsigned char addr, unsigned short val)
  * @timeout - timeout per cmd
  * Return 0, if success; error code, if failed
  */
-signed int fm_cmd_tx(unsigned char *buf, unsigned short len, signed int mask, signed int cnt, signed int timeout,
-		 signed int (*callback)(struct fm_res_ctx *result))
+fm_s32 fm_cmd_tx(fm_u8 *buf, fm_u16 len, fm_s32 mask, fm_s32 cnt, fm_s32 timeout,
+		 fm_s32 (*callback)(struct fm_res_ctx *result))
 {
-	signed int ret_time = 0;
+	fm_s32 ret_time = 0;
 	struct task_struct *task = current;
 	struct fm_trace_t trace;
 
@@ -181,14 +181,14 @@ signed int fm_cmd_tx(unsigned char *buf, unsigned short len, signed int mask, si
 	trace.type = buf[0];
 	trace.opcode = buf[1];
 	trace.len = len - 4;
-	trace.tid = (signed int) task->pid;
+	trace.tid = (fm_s32) task->pid;
 	fm_memset(trace.pkt, 0, FM_TRACE_PKT_SIZE);
 	fm_memcpy(trace.pkt, &buf[4], (trace.len > FM_TRACE_PKT_SIZE) ? FM_TRACE_PKT_SIZE : trace.len);
 #endif
 
 
 #ifdef FM_TRACE_ENABLE
-	if (true == FM_TRACE_FULL(cmd_fifo))
+	if (fm_true == FM_TRACE_FULL(cmd_fifo))
 		FM_TRACE_OUT(cmd_fifo, NULL);
 
 	FM_TRACE_IN(cmd_fifo, &trace);
@@ -222,16 +222,16 @@ signed int fm_cmd_tx(unsigned char *buf, unsigned short len, signed int mask, si
 	return 0;
 }
 
-signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed int))
+fm_s32 fm_event_parser(fm_s32(*rds_parser) (struct rds_rx_t *, fm_s32))
 {
-	signed int len;
-	signed int i = 0;
-	unsigned char opcode = 0;
-	unsigned short length = 0;
-	unsigned char ch;
-	unsigned char rx_buf[RX_BUF_SIZE + 10] = { 0 };	/* the 10 bytes are protect gaps */
+	fm_s32 len;
+	fm_s32 i = 0;
+	fm_u8 opcode = 0;
+	fm_u16 length = 0;
+	fm_u8 ch;
+	fm_u8 rx_buf[RX_BUF_SIZE + 10] = { 0 };	/* the 10 bytes are protect gaps */
 
-	static enum fm_task_parser_state state = FM_TASK_RX_PARSER_PKT_TYPE;
+	static volatile fm_task_parser_state state = FM_TASK_RX_PARSER_PKT_TYPE;
 	struct fm_trace_t trace;
 	struct task_struct *task = current;
 
@@ -277,17 +277,17 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 
 		case FM_TASK_RX_PARSER_PKT_LEN_2:
 			i++;
-			length |= (unsigned short) (ch << 0x8);
+			length |= (fm_u16) (ch << 0x8);
 
 #ifdef FM_TRACE_ENABLE
 			trace.type = FM_TASK_EVENT_PKT_TYPE;
 			trace.opcode = opcode;
 			trace.len = length;
-			trace.tid = (signed int) task->pid;
+			trace.tid = (fm_s32) task->pid;
 			fm_memset(trace.pkt, 0, FM_TRACE_PKT_SIZE);
 			fm_memcpy(trace.pkt, &rx_buf[i], (length > FM_TRACE_PKT_SIZE) ? FM_TRACE_PKT_SIZE : length);
 
-			if (true == FM_TRACE_FULL(cmd_fifo))
+			if (fm_true == FM_TRACE_FULL(cmd_fifo))
 				FM_TRACE_OUT(cmd_fifo, NULL);
 
 			FM_TRACE_IN(cmd_fifo, &trace);
@@ -334,10 +334,10 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 			case FM_SCAN_OPCODE:
 
 				/* check if the result data is long enough */
-				if ((RX_BUF_SIZE - i) < (sizeof(unsigned short) * FM_SCANTBL_SIZE)) {
+				if ((RX_BUF_SIZE - i) < (sizeof(fm_u16) * FM_SCANTBL_SIZE)) {
 					WCN_DBG(FM_ALT | LINK,
 						"FM_SCAN_OPCODE err, [tblsize=%d],[bufsize=%d]\n",
-						(unsigned int)(sizeof(unsigned short) * FM_SCANTBL_SIZE),
+						(unsigned int)(sizeof(fm_u16) * FM_SCANTBL_SIZE),
 						(unsigned int)(RX_BUF_SIZE - i));
 					FM_EVENT_SEND(link_event->ln_event, FLAG_SCAN_DONE);
 					return 0;
@@ -347,7 +347,7 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 					FM_EVENT_SEND(link_event->ln_event, FLAG_CQI_DONE);
 				} else {
 					fm_memcpy(link_event->result.scan_result, &rx_buf[i],
-						  sizeof(unsigned short) * FM_SCANTBL_SIZE);
+						  sizeof(fm_u16) * FM_SCANTBL_SIZE);
 					FM_EVENT_SEND(link_event->ln_event, FLAG_SCAN_DONE);
 				}
 
@@ -402,7 +402,7 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 				if ((RX_BUF_SIZE - i) < length) {
 					WCN_DBG(FM_ALT | LINK,
 						"RDS RX err, [rxlen=%d],[bufsize=%d]\n",
-						(signed int) length, (RX_BUF_SIZE - i));
+						(fm_s32) length, (RX_BUF_SIZE - i));
 					FM_EVENT_SEND(link_event->ln_event, (1 << opcode));
 					break;
 				}
@@ -410,7 +410,7 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 				if (length > sizeof(struct rds_rx_t)) {
 					WCN_DBG(FM_ALT | LINK,
 						"RDS RX len out of range, [rxlen=%d],[needmaxlen=%zd]\n",
-						(signed int) length, (sizeof(struct rds_rx_t)));
+						(fm_s32) length, (sizeof(struct rds_rx_t)));
 					FM_EVENT_SEND(link_event->ln_event, (1 << opcode));
 					break;
 				}
@@ -443,14 +443,14 @@ signed int fm_event_parser(signed int(*rds_parser) (struct rds_rx_t *, signed in
 	return 0;
 }
 
-bool fm_wait_stc_done(unsigned int sec)
+fm_bool fm_wait_stc_done(fm_u32 sec)
 {
-	return true;
+	return fm_true;
 }
 
-signed int fm_force_active_event(unsigned int mask)
+fm_s32 fm_force_active_event(fm_u32 mask)
 {
-	unsigned int flag;
+	fm_u32 flag;
 
 	flag = FM_EVENT_GET(link_event->ln_event);
 	WCN_DBG(FM_WAR | LINK, "before force active event, [flag=0x%08x]\n", flag);
@@ -460,15 +460,15 @@ signed int fm_force_active_event(unsigned int mask)
 	return 0;
 }
 
-extern signed int fm_print_cmd_fifo(void)
+extern fm_s32 fm_print_cmd_fifo(void)
 {
 #ifdef FM_TRACE_ENABLE
 	struct fm_trace_t trace;
-	signed int i = 0;
+	fm_s32 i = 0;
 
 	fm_memset(&trace, 0, sizeof(struct fm_trace_t));
 
-	while (false == FM_TRACE_EMPTY(cmd_fifo)) {
+	while (fm_false == FM_TRACE_EMPTY(cmd_fifo)) {
 		fm_memset(trace.pkt, 0, FM_TRACE_PKT_SIZE);
 		FM_TRACE_OUT(cmd_fifo, &trace);
 		WCN_DBG(FM_ALT | LINK, "trace, type %d, op %d, len %d, tid %d, time %d\n",
@@ -487,15 +487,15 @@ extern signed int fm_print_cmd_fifo(void)
 	return 0;
 }
 
-extern signed int fm_print_evt_fifo(void)
+extern fm_s32 fm_print_evt_fifo(void)
 {
 #ifdef FM_TRACE_ENABLE
 	struct fm_trace_t trace;
-	signed int i = 0;
+	fm_s32 i = 0;
 
 	fm_memset(&trace, 0, sizeof(struct fm_trace_t));
 
-	while (false == FM_TRACE_EMPTY(evt_fifo)) {
+	while (fm_false == FM_TRACE_EMPTY(evt_fifo)) {
 		fm_memset(trace.pkt, 0, FM_TRACE_PKT_SIZE);
 		FM_TRACE_OUT(evt_fifo, &trace);
 		WCN_DBG(FM_ALT | LINK, "%s: op %d, len %d, %d\n", evt_fifo->name, trace.opcode,
@@ -515,7 +515,7 @@ extern signed int fm_print_evt_fifo(void)
 	return 0;
 }
 
-signed int fm_trace_in(struct fm_trace_fifo_t *thiz, struct fm_trace_t *new_tra)
+fm_s32 fm_trace_in(struct fm_trace_fifo_t *thiz, struct fm_trace_t *new_tra)
 {
 	if (new_tra == NULL) {
 		WCN_DBG(FM_ERR | LINK, "%s,invalid pointer\n", __func__);
@@ -536,7 +536,7 @@ signed int fm_trace_in(struct fm_trace_fifo_t *thiz, struct fm_trace_t *new_tra)
 	return 0;
 }
 
-signed int fm_trace_out(struct fm_trace_fifo_t *thiz, struct fm_trace_t *dst_tra)
+fm_s32 fm_trace_out(struct fm_trace_fifo_t *thiz, struct fm_trace_t *dst_tra)
 {
 	if (thiz->len > 0) {
 		if (dst_tra) {
@@ -553,17 +553,17 @@ signed int fm_trace_out(struct fm_trace_fifo_t *thiz, struct fm_trace_t *dst_tra
 	return 0;
 }
 
-bool fm_trace_is_full(struct fm_trace_fifo_t *thiz)
+fm_bool fm_trace_is_full(struct fm_trace_fifo_t *thiz)
 {
-	return (thiz->len == thiz->size) ? true : false;
+	return (thiz->len == thiz->size) ? fm_true : fm_false;
 }
 
-bool fm_trace_is_empty(struct fm_trace_fifo_t *thiz)
+fm_bool fm_trace_is_empty(struct fm_trace_fifo_t *thiz)
 {
-	return (thiz->len == 0) ? true : false;
+	return (thiz->len == 0) ? fm_true : fm_false;
 }
 
-struct fm_trace_fifo_t *fm_trace_fifo_create(const signed char *name)
+struct fm_trace_fifo_t *fm_trace_fifo_create(const fm_s8 *name)
 {
 	struct fm_trace_fifo_t *tmp;
 
@@ -588,7 +588,7 @@ struct fm_trace_fifo_t *fm_trace_fifo_create(const signed char *name)
 	return tmp;
 }
 
-signed int fm_trace_fifo_release(struct fm_trace_fifo_t *fifo)
+fm_s32 fm_trace_fifo_release(struct fm_trace_fifo_t *fifo)
 {
 	if (fifo) {
 		WCN_DBG(FM_NTC | LINK, "%s released\n", fifo->name);

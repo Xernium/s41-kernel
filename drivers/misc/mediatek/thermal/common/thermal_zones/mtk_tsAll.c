@@ -30,7 +30,7 @@
 #include <linux/uidgid.h>
 #include <linux/slab.h>
 
-#define RESERVED_TZS (12)
+#define RESERVED_TZS (9)
 
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
@@ -44,9 +44,9 @@ struct thz_data {
 	int num_trip;
 	unsigned int interval;	/* mseconds, 0 : no auto polling */
 	int kernelmode;
-	struct semaphore sem_mutex;
-	int isTimerCancelled;
 };
+
+static DEFINE_MUTEX(tsAll_timer_lock);
 
 static struct thz_data g_tsData[RESERVED_TZS];
 
@@ -200,15 +200,12 @@ static void mtkts_allts_cancel_timer(void)
 {
 	int i;
 
-	for (i = 0; i < TS_ENUM_MAX; i++) {
-		if (down_trylock(&g_tsData[i].sem_mutex))
-			continue;
-
-		if (g_tsData[i].thz_dev) {
-			cancel_delayed_work(&(g_tsData[i].thz_dev->poll_queue));
-			g_tsData[i].isTimerCancelled = 1;
+	if (mutex_trylock(&tsAll_timer_lock)) {
+		for (i = 0; i < TS_ENUM_MAX; i++) {
+			if (g_tsData[i].thz_dev)
+				cancel_delayed_work(&(g_tsData[i].thz_dev->poll_queue));
 		}
-		up(&g_tsData[i].sem_mutex);
+		mutex_unlock(&tsAll_timer_lock);
 	}
 }
 
@@ -217,21 +214,14 @@ static void mtkts_allts_start_timer(void)
 {
 	int i;
 
-	for (i = 0; i < TS_ENUM_MAX; i++) {
-		if (!g_tsData[i].isTimerCancelled)
-			continue;
-
-		g_tsData[i].isTimerCancelled = 0;
-
-		if (down_trylock(&g_tsData[i].sem_mutex))
-			continue;
-
-		if (g_tsData[i].thz_dev != NULL && g_tsData[i].interval != 0)
-			mod_delayed_work(system_freezable_power_efficient_wq, &(g_tsData[i].thz_dev->poll_queue),
-				round_jiffies(msecs_to_jiffies(1000)));
-
-		up(&g_tsData[i].sem_mutex);
-		/*1000 = 1sec */
+	if (mutex_trylock(&tsAll_timer_lock)) {
+		for (i = 0; i < TS_ENUM_MAX; i++) {
+			if (g_tsData[i].thz_dev != NULL && g_tsData[i].interval != 0)
+				mod_delayed_work(system_freezable_wq,
+					&(g_tsData[i].thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(1000)));
+			/*1000 = 1sec */
+		}
+		mutex_unlock(&tsAll_timer_lock);
 	}
 }
 
@@ -302,7 +292,7 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 	pTempD->desc[len] = '\0';\
 \
 	i = sscanf(pTempD->desc,	\
-"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",\
+		"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",\
 		&pTempD->num_trip,	\
 		&pTempD->trip[0], &pTempD->t_type[0], pTempD->bind[0],	\
 		&pTempD->trip[1], &pTempD->t_type[1], pTempD->bind[1],	\
@@ -317,20 +307,20 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 		&pTempD->time_msec);	\
 \
 	if (i == 32) {	\
-		down(&g_tsData[(num - 1)].sem_mutex);	\
 		tsallts_dprintk("[tsallts_write_"__stringify(num)"] thermal unregister\n");	\
 \
+		mutex_lock(&tsAll_timer_lock);	\
 		if (g_tsData[(num - 1)].thz_dev) {	\
 			mtk_thermal_zone_device_unregister(g_tsData[(num - 1)].thz_dev);	\
 			g_tsData[(num - 1)].thz_dev = NULL;	\
 		}	\
+		mutex_unlock(&tsAll_timer_lock);	\
 \
 		if (pTempD->num_trip < 0 || pTempD->num_trip > 10) {	\
 			aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT,	\
 				"[tsallts_write_"__stringify(num)"]", "Bad argument");	\
 			tsallts_dprintk("[tsallts_write1] bad argument\n");	\
 			kfree(pTempD);	\
-			up(&g_tsData[(num - 1)].sem_mutex);	\
 			return -EINVAL;	\
 		}	\
 \
@@ -370,14 +360,14 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 			tsallts_printk("Time_ms=%d\n", g_tsData[(num - 1)].interval);	\
 		}	\
 \
-		tsallts_dprintk("[tsallts_write_"__stringify(num)"] thermal register\n");	\
+		mutex_lock(&tsAll_timer_lock);	\
 		if (g_tsData[(num - 1)].thz_dev == NULL) {	\
 			g_tsData[(num - 1)].thz_dev = mtk_thermal_zone_device_register(g_tsData[(num - 1)].thz_name,\
 							g_tsData[(num - 1)].num_trip, NULL, &tsallts_dev_ops, 0,\
 							0, 0, g_tsData[(num - 1)].interval);	\
 		}	\
+		mutex_unlock(&tsAll_timer_lock);	\
 \
-		up(&g_tsData[(num - 1)].sem_mutex);	\
 		kfree(pTempD);	\
 		return count;	\
 	}	\
@@ -413,9 +403,6 @@ PROC_FOPS_RW(6);
 PROC_FOPS_RW(7);
 PROC_FOPS_RW(8);
 PROC_FOPS_RW(9);
-PROC_FOPS_RW(10);
-PROC_FOPS_RW(11);
-PROC_FOPS_RW(12);
 
 static const struct file_operations *thz_fops[RESERVED_TZS] = {
 	FOPS(1),
@@ -426,10 +413,7 @@ static const struct file_operations *thz_fops[RESERVED_TZS] = {
 	FOPS(6),
 	FOPS(7),
 	FOPS(8),
-	FOPS(9),
-	FOPS(10),
-	FOPS(11),
-	FOPS(12)
+	FOPS(9)
 };
 
 static int __init tsallts_init(void)
@@ -451,8 +435,6 @@ static int __init tsallts_init(void)
 		g_tsData[i].num_trip = 0;
 		g_tsData[i].interval = 0;
 		g_tsData[i].kernelmode = 0;
-		sema_init(&g_tsData[i].sem_mutex, 1);
-		g_tsData[i].isTimerCancelled = 0;
 	}
 
 	tsallts_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
@@ -472,6 +454,7 @@ static int __init tsallts_init(void)
 	}
 
 	mtkTTimer_register("tztsAll", mtkts_allts_start_timer, mtkts_allts_cancel_timer);
+
 	return 0;
 }
 

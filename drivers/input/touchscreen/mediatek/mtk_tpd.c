@@ -1,15 +1,22 @@
-/*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+/******************************************************************************
+ * mtk_tpd.c - MTK Android Linux Touch Panel Device Driver               *
+ *                                                                            *
+ * Copyright 2008-2009 MediaTek Co.,Ltd.                                      *
+ *                                                                            *
+ * DESCRIPTION:                                                               *
+ *     this file provide basic touch panel event to input sub system          *
+ *                                                                            *
+ * AUTHOR:                                                                    *
+ *     Kirby.Wu (mtk02247)                                                    *
+ *                                                                            *
+ * NOTE:                                                                      *
+ * 1. Sensitivity for touch screen should be set to edge-sensitive.           *
+ *    But in this driver it is assumed to be done by interrupt core,          *
+ *    though not done yet. Interrupt core may provide interface to            *
+ *    let drivers set the sensitivity in the future. In this case,            *
+ *    this driver should set the sensitivity of the corresponding IRQ         *
+ *    line itself.                                                            *
+ ******************************************************************************/
 
 #include "tpd.h"
 #include <linux/slab.h>
@@ -19,9 +26,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/fb.h>
-#ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
-#include <mach/mtk_6306_gpio.h>
-#endif
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -53,17 +57,12 @@ const struct of_device_id touch_of_match[] = {
 	{ .compatible = "mediatek,mt8173-touch", },
 	{ .compatible = "mediatek,mt6755-touch", },
 	{ .compatible = "mediatek,mt6757-touch", },
-	{ .compatible = "mediatek,mt6763-touch", },
-	{ .compatible = "mediatek,mt3886-touch", },
 	{ .compatible = "mediatek,mt6797-touch", },
 	{ .compatible = "mediatek,mt8163-touch", },
 	{ .compatible = "mediatek,mt8127-touch", },
 	{ .compatible = "mediatek,mt2701-touch", },
 	{ .compatible = "mediatek,mt7623-touch", },
 	{ .compatible = "mediatek,elbrus-touch", },
-	{ .compatible = "mediatek,mt6799-touch", },
-	{ .compatible = "mediatek,mt6739-touch", },
-	{ .compatible = "mediatek,touch", },
 	{},
 };
 
@@ -106,9 +105,6 @@ void tpd_get_dts_info(void)
 		memcpy(&tpd_filter, &tpd_dts_data.touch_filter, sizeof(tpd_filter));
 		pr_debug("[tpd]tpd-filter-enable = %d, pixel_density = %d\n",
 					tpd_filter.enable, tpd_filter.pixel_density);
-		tpd_dts_data.tpd_use_ext_gpio = of_property_read_bool(node1, "tpd-use-ext-gpio");
-		of_property_read_u32(node1, "tpd-rst-ext-gpio-num", &tpd_dts_data.rst_ext_gpio_num);
-
 	} else {
 		pr_err("[tpd]%s can't find touch compatible custom node\n", __func__);
 	}
@@ -134,17 +130,10 @@ void tpd_gpio_output(int pin, int level)
 		else
 			pinctrl_select_state(pinctrl1, eint_output0);
 	} else {
-		if (tpd_dts_data.tpd_use_ext_gpio) {
-#ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
-			mt6306_set_gpio_dir(tpd_dts_data.rst_ext_gpio_num, 1);
-			mt6306_set_gpio_out(tpd_dts_data.rst_ext_gpio_num, level);
-#endif
-		} else {
-			if (level)
-				pinctrl_select_state(pinctrl1, rst_output1);
-			else
-				pinctrl_select_state(pinctrl1, rst_output0);
-		}
+		if (level)
+			pinctrl_select_state(pinctrl1, rst_output1);
+		else
+			pinctrl_select_state(pinctrl1, rst_output0);
 	}
 	mutex_unlock(&tpd_set_gpio_mutex);
 }
@@ -184,19 +173,17 @@ pr_err("Lomen 0.2\n");
 		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_eint_output1!\n");
 		return ret;
 	}
-	if (tpd_dts_data.tpd_use_ext_gpio == false) {
-		rst_output0 = pinctrl_lookup_state(pinctrl1, "state_rst_output0");
-		if (IS_ERR(rst_output0)) {
-			ret = PTR_ERR(rst_output0);
-			dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output0!\n");
-			return ret;
-		}
-		rst_output1 = pinctrl_lookup_state(pinctrl1, "state_rst_output1");
-		if (IS_ERR(rst_output1)) {
-			ret = PTR_ERR(rst_output1);
-			dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output1!\n");
-			return ret;
-		}
+	rst_output0 = pinctrl_lookup_state(pinctrl1, "state_rst_output0");
+	if (IS_ERR(rst_output0)) {
+		ret = PTR_ERR(rst_output0);
+		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output0!\n");
+		return ret;
+	}
+	rst_output1 = pinctrl_lookup_state(pinctrl1, "state_rst_output1");
+	if (IS_ERR(rst_output1)) {
+		ret = PTR_ERR(rst_output1);
+		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output1!\n");
+		return ret;
 	}
 	TPD_DEBUG("[tpd%d] mt_tpd_pinctrl----------\n", pdev->id);
 	return 0;
@@ -532,7 +519,7 @@ pr_err("Lomen 1\n");
     #endif
 	{
 #ifdef CONFIG_CUSTOM_LCM_X
-#ifndef CONFIG_FPGA_EARLY_PORTING
+#ifndef CONFIG_MTK_FPGA
 #ifdef CONFIG_MTK_FB	/*Fix build errors,as some projects  cannot support these apis while bring up*/
 		TPD_RES_X = DISP_GetScreenWidth();
 		TPD_RES_Y = DISP_GetScreenHeight();

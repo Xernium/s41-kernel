@@ -65,6 +65,20 @@ static const struct of_device_id otg_switch_of_match[] = {
 
 #endif
 
+static ssize_t cei_otg_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+DEVICE_ATTR(cei_otg_mode, 0664, NULL, cei_otg_mode_store);
+
+static struct attribute *cei_otg_attributes[] = {
+	&dev_attr_cei_otg_mode.attr,
+	NULL
+};
+
+static const struct attribute_group cei_otg_attr_group = {
+	.attrs = cei_otg_attributes,
+};
+
 static const struct of_device_id otg_iddig_of_match[] = {
 	{.compatible = "mediatek,usb_iddig_bi_eint"},
 	{},
@@ -114,16 +128,6 @@ static void mtk_set_iddig_in_detect(void)
 bool mtk_is_usb_id_pin_short_gnd(void)
 {
 	return (mtk_idpin_cur_stat != IDPIN_OUT) ? true : false;
-}
-
-void mtk_set_host_mode_in_host(void)
-{
-	mtk_idpin_cur_stat = IDPIN_IN_HOST;
-}
-
-void mtk_set_host_mode_out(void)
-{
-	mtk_idpin_cur_stat = IDPIN_OUT;
 }
 
 
@@ -256,6 +260,10 @@ static int otg_iddig_probe(struct platform_device *pdev)
 		pinctrl_select_state(pinctrl, pinctrl_iddig_disable);
 #endif
 
+	mtk_idpin_irqnum = irq_of_parse_and_map(node, 0);
+	if (mtk_idpin_irqnum < 0)
+		return -ENODEV;
+
 	retval = of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
 	if (!retval) {
 		iddig_gpio = ints[0];
@@ -265,6 +273,13 @@ static int otg_iddig_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&mtk_xhci_delaywork, mtk_xhci_mode_switch);
+
+	retval = sysfs_create_group(&pdev->dev.kobj, &cei_otg_attr_group);
+	if (retval < 0) {
+		dev_err(&pdev->dev, "Cannot register USB bus sysfs attributes: %d\n",
+				retval);
+		return retval;
+	}
 
 #ifdef CONFIG_USB_MTK_OTG_SWITCH
 #ifdef CONFIG_SYSFS
@@ -369,8 +384,8 @@ static ssize_t otg_mode_store(struct device *dev, struct device_attribute *attr,
 				cancel_delayed_work_sync(&mtk_xhci_delaywork);
 				if (mtk_is_host_mode() == true)
 					mtk_xhci_driver_unload(true);
-				mtk_idpin_cur_stat = IDPIN_OUT;
 
+				mtk_idpin_cur_stat = IDPIN_OUT;
 
 				if (!IS_ERR(pinctrl_iddig_disable))
 					pinctrl_select_state(pinctrl, pinctrl_iddig_disable);
@@ -396,6 +411,21 @@ static ssize_t otg_mode_store(struct device *dev, struct device_attribute *attr,
 }
 #endif
 
+static ssize_t cei_otg_mode_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int enable;
 
+	if (sscanf(buf, "%ud", &enable) == 1) {
+		pr_err("%s: enable = %d\n", __func__, enable);
 
+		if (enable == 0)
+			cei_disable_otg_mode();
+		else if (enable == 1)
+			cei_enable_otg_mode();
+		else
+			cei_enable_normal_otg_mode();
+	}
+	return count;
+}
 

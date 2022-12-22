@@ -123,10 +123,8 @@ static int _btif_exit_dpidle_from_dpidle(p_mtk_btif p_btif);
 static int _btif_enter_dpidle_from_on(p_mtk_btif p_btif);
 static int _btif_enter_dpidle_from_sus(p_mtk_btif p_btif);
 
-#if ENABLE_BTIF_TX_DMA
 static int _btif_vfifo_deinit(p_mtk_btif_dma p_dma);
 static int _btif_vfifo_init(p_mtk_btif_dma p_dma);
-#endif
 
 static bool _btif_is_tx_complete(p_mtk_btif p_btif);
 static int _btif_init(p_mtk_btif p_btif);
@@ -262,9 +260,9 @@ int _btif_suspend(p_mtk_btif p_btif)
 {
 	int i_ret;
 
+	if (_btif_state_hold(p_btif))
+		return E_BTIF_INTR;
 	if (p_btif != NULL) {
-		if (_btif_state_hold(p_btif))
-			return E_BTIF_INTR;
 		if (!(p_btif->enable))
 			i_ret = 0;
 		else {
@@ -296,9 +294,9 @@ int _btif_suspend(p_mtk_btif p_btif)
 				}
 			}
 		}
-		BTIF_STATE_RELEASE(p_btif);
 	} else
 		i_ret = -1;
+	BTIF_STATE_RELEASE(p_btif);
 
 	return i_ret;
 }
@@ -396,9 +394,9 @@ int _btif_resume(p_mtk_btif p_btif)
 	int i_ret = 0;
 	ENUM_BTIF_STATE state = B_S_MAX;
 
+	if (_btif_state_hold(p_btif))
+		return E_BTIF_INTR;
 	if (p_btif != NULL) {
-		if (_btif_state_hold(p_btif))
-			return E_BTIF_INTR;
 		state = _btif_state_get(p_btif);
 		if (!(p_btif->enable))
 			i_ret = 0;
@@ -407,9 +405,9 @@ int _btif_resume(p_mtk_btif p_btif)
 		else
 			BTIF_INFO_FUNC
 				("BTIF state: %s before resume, do nothing\n", g_state[state]);
-		BTIF_STATE_RELEASE(p_btif);
 	} else
 		i_ret = -1;
+	BTIF_STATE_RELEASE(p_btif);
 
 	return i_ret;
 }
@@ -1842,7 +1840,6 @@ bool _btif_is_tx_complete(p_mtk_btif p_btif)
 
 /*--------------------------------Functions-------------------------------------------*/
 
-#if ENABLE_BTIF_TX_DMA
 static int _btif_vfifo_init(p_mtk_btif_dma p_dma)
 {
 	P_DMA_VFIFO p_vfifo = NULL;
@@ -1925,7 +1922,6 @@ static int _btif_vfifo_deinit(p_mtk_btif_dma p_dma)
 
 	return 0;
 }
-#endif
 
 static int _btif_state_init(p_mtk_btif p_btif)
 {
@@ -2386,7 +2382,7 @@ static int _btif_tx_ctx_init(p_mtk_btif p_btif)
 		}
 
 		i_ret = kfifo_alloc(p_btif->p_tx_fifo,
-				    BTIF_TX_BUFFER_FIFO_SIZE, GFP_ATOMIC);
+				    BTIF_TX_FIFO_SIZE, GFP_ATOMIC);
 		if (i_ret != 0) {
 			BTIF_ERR_FUNC("kfifo_alloc failed, errno(%d)\n", i_ret);
 			i_ret = -ENOMEM;

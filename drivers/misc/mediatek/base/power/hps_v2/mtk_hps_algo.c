@@ -179,7 +179,7 @@ static int hps_algo_check_criteria(void)
 			continue;
 		} else {
 			/*
-			 * tag_pr_info("... Cluster%d ... target = %d, ref_base = %d, ref_limit = %d\n", i,
+			 * hps_warn("... Cluster%d ... target = %d, ref_base = %d, ref_limit = %d\n", i,
 			 *	hps_sys.cluster_info[i].target_core_num,
 			 *	hps_sys.cluster_info[i].ref_base_value,
 			 *	hps_sys.cluster_info[i].ref_limit_value);
@@ -190,13 +190,13 @@ static int hps_algo_check_criteria(void)
 	}
 	mutex_unlock(&hps_ctxt.para_lock);
 	if (ret)
-		tag_pr_info("[Info]Condition break!!\n");
+		hps_warn("[Info]Condition break!!\n");
 	return ret;
 }
 
 static int hps_algo_do_cluster_action(unsigned int cluster_id)
 {
-	int cpu, target_cores, online_cores, cpu_id_min, cpu_id_max;
+	unsigned int cpu, target_cores, online_cores, cpu_id_min, cpu_id_max;
 
 	target_cores = hps_sys.cluster_info[cluster_id].target_core_num;
 	online_cores = hps_sys.cluster_info[cluster_id].online_core_num;
@@ -211,17 +211,17 @@ static int hps_algo_do_cluster_action(unsigned int cluster_id)
 #endif
 		for (cpu = cpu_id_min; cpu <= cpu_id_max; ++cpu) {
 			if (hps_get_break_en() != 0) {
-				tag_pr_info("[CPUHP] up CPU%d: hps_get_break_en\n", cpu);
+				hps_warn("[CPUHP] up CPU%d: hps_get_break_en\n", cpu);
 				return 1;
 			}
 			if (hps_algo_check_criteria() == 1) {
-				tag_pr_info("[CPUHP] up CPU%d: hps_algo_check_criteria\n", cpu);
+				hps_warn("[CPUHP] up CPU%d: hps_algo_check_criteria\n", cpu);
 				return 1;
 			}
 			if (!cpu_online(cpu)) {	/* For CPU offline */
 				/*
 				 * if (cpu_up(cpu))
-				 *	tag_pr_info("[Info]CPU %d ++!\n", cpu);
+				 *	hps_warn("[Info]CPU %d ++!\n", cpu);
 				 */
 				if (cpu_up(cpu) == -EBUSY && hps_sys.action_id == 0xF00) {
 					/* rush boost failed because cpu_hotplug_disabled != 0 */
@@ -251,17 +251,17 @@ static int hps_algo_do_cluster_action(unsigned int cluster_id)
 #endif
 		for (cpu = cpu_id_max; cpu >= cpu_id_min; --cpu) {
 			if (hps_get_break_en() != 0) {
-				tag_pr_info("[CPUHP] down CPU%d: hps_get_break_en\n", cpu);
+				hps_warn("[CPUHP] down CPU%d: hps_get_break_en\n", cpu);
 				return 1;
 			}
 			if (hps_algo_check_criteria() == 1) {
-				tag_pr_info("[CPUHP] down CPU%d: hps_algo_check_criteria\n", cpu);
+				hps_warn("[CPUHP] down CPU%d: hps_algo_check_criteria\n", cpu);
 				return 1;
 			}
 			if (cpu_online(cpu)) {
 				/*
 				 * if (cpu_down(cpu))
-				 *	tag_pr_info("[Info]CPU %d --!\n", cpu);
+				 *	hps_warn("[Info]CPU %d --!\n", cpu);
 				 */
 				cpu_down(cpu);
 				--online_cores;
@@ -437,24 +437,6 @@ void hps_algo_main(void)
 	/*Back up limit and base value for check */
 
 	mutex_lock(&hps_ctxt.para_lock);
-#if TURBO_CORE_SUPPORT
-	if (hps_sys.turbo_core_supp) {
-		if (hps_sys.ppm_smart_dect && !hps_sys.smart_dect_hint) {	/* enter */
-			if (!cpu_online(0))
-				cpu_up(0);
-			if (!cpu_online(7))
-				cpu_up(7);
-			action_print = 1;
-		} else if (!hps_sys.ppm_smart_dect && hps_sys.smart_dect_hint) {	/* exit */
-			if (!cpu_online(4))
-				cpu_up(4);
-			if (cpu_online(7))
-				cpu_down(7);
-			action_print = 1;
-		}
-	}
-#endif
-
 	for (i = 0; i < hps_sys.cluster_num; i++) {
 		hps_sys.cluster_info[i].base_value = hps_sys.cluster_info[i].ref_base_value;
 		hps_sys.cluster_info[i].limit_value = hps_sys.cluster_info[i].ref_limit_value;
@@ -507,8 +489,15 @@ void hps_algo_main(void)
 		if (hps_algo_heavytsk_det())
 			hps_sys.action_id = 0xE1;
 
-	if (hps_sys.action_id == 0)
-		goto HPS_END;
+	if (hps_sys.action_id == 0) {
+#if TURBO_CORE_SUPPORT
+		if (hps_sys.turbo_core_supp && hps_sys.smart_dect_hint) {
+			for (i = 0; i < hps_sys.cluster_num; i++)
+				hps_sys.cluster_info[i].target_core_num = hps_sys.cluster_info[i].online_core_num;
+		} else
+#endif
+			goto HPS_END;
+	}
 
 	/*
 	 * algo - end
@@ -625,7 +614,7 @@ HPS_END:
 		if (action_print) {
 			hps_set_funct_ctrl();
 			if (action_break)
-				tag_pr_notice
+				hps_warn
 				    ("(0x%X)%s action break!! (%u)(%u)(%u) %s %s%s-->%s%s (%u)(%u)(%u)(%u) %s\n",
 				     ((hps_ctxt.hps_func_control << 12) | hps_sys.action_id),
 				     str_online, hps_ctxt.cur_loads,
@@ -636,7 +625,7 @@ HPS_END:
 				     hps_sys.down_load_avg, hps_sys.tlp_avg, hps_sys.rush_cnt,
 				     str_target);
 			else {
-				tag_pr_notice
+				hps_warn
 				    ("(0x%X)%s action end (%u)(%u)(%u) %s %s%s (%u)(%u)(%u)(%u) %s\n",
 				     ((hps_ctxt.hps_func_control << 12) | hps_sys.action_id),
 				     str_online, hps_ctxt.cur_loads,
@@ -657,7 +646,7 @@ HPS_END:
 #if HPS_HRT_BT_EN
 	if (hrtbt_dbg) {
 		hps_set_funct_ctrl();
-		tag_pr_notice("(0x%X)%s HRT_BT_DBG (%u)(%u)(%u) %s %s%s (%u)(%u)(%u)(%u) %s\n",
+		hps_warn("(0x%X)%s HRT_BT_DBG (%u)(%u)(%u) %s %s%s (%u)(%u)(%u)(%u) %s\n",
 			 ((hps_ctxt.hps_func_control << 12) | hps_sys.action_id),
 			 str_online, hps_ctxt.cur_loads, hps_ctxt.cur_tlp,
 			 hps_ctxt.cur_iowait, str_hvytsk, str_criteria_limit,

@@ -559,7 +559,6 @@ struct _SW_RFB_T {
 	ENUM_CSUM_RESULT_T aeCSUM[CSUM_TYPE_NUM];
 	ENUM_RX_PKT_DESTINATION_T eDst;
 	ENUM_TRAFFIC_CLASS_INDEX_T eTC;	/* only valid when eDst == FORWARD */
-	UINT_64 rIntTime;
 };
 
 /*! RX configuration type structure */
@@ -806,9 +805,6 @@ typedef struct _EMU_MAC_RATE_INFO_T {
 
 #define RXM_IS_QOS_DATA_FRAME(_u2FrameCtrl) \
 	(((_u2FrameCtrl & MASK_FRAME_TYPE) == MAC_FRAME_QOS_DATA) ? TRUE : FALSE)
-
-#define RXM_IS_DATA_FRAME(_u2FrameCtrl) \
-	(((_u2FrameCtrl & MASK_FC_TYPE) == MAC_FRAME_TYPE_DATA) ? TRUE : FALSE)
 
 /*******************************************************************************
 *                   F U N C T I O N   D E C L A R A T I O N S

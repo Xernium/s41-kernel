@@ -138,7 +138,7 @@ int hps_cpu_init(void)
 	/* char str1[32]; */
 	struct cpumask cpu_mask;
 
-	tag_pr_info("hps_cpu_init\n");
+	hps_warn("hps_cpu_init\n");
 
 	for (i = setup_max_cpus; i < num_possible_cpus(); i++) {
 #ifdef CONFIG_ARM64
@@ -152,13 +152,13 @@ int hps_cpu_init(void)
 
 	/* =======================================New algo. definition ========================================== */
 	hps_sys.cluster_num = (unsigned int)arch_get_nr_clusters();
-	tag_pr_info("[New algo.] hps_sys.cluster_num %d\n", hps_sys.cluster_num);
+	hps_warn("[New algo.] hps_sys.cluster_num %d\n", hps_sys.cluster_num);
 
 	/* init cluster info of hps_sys */
 	hps_sys.cluster_info =
 	    kzalloc(hps_sys.cluster_num * sizeof(*hps_sys.cluster_info), GFP_KERNEL);
 	if (!hps_sys.cluster_info) {
-		tag_pr_notice("@%s: fail to allocate memory for cluster_info!\n", __func__);
+		hps_warn("@%s: fail to allocate memory for cluster_info!\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -212,7 +212,7 @@ int hps_cpu_deinit(void)
 {
 	int r = 0;
 
-	tag_pr_info("hps_cpu_deinit\n");
+	hps_warn("hps_cpu_deinit\n");
 
 	return r;
 }

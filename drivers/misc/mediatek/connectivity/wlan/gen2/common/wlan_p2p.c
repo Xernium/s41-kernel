@@ -55,8 +55,25 @@
 *                              F U N C T I O N S
 *******************************************************************************
 */
+/*----------------------------------------------------------------------------*/
+/*!
+* \brief command packet generation utility
+*
+* \param[in] prAdapter          Pointer to the Adapter structure.
+* \param[in] ucCID              Command ID
+* \param[in] fgSetQuery         Set or Query
+* \param[in] fgNeedResp         Need for response
+* \param[in] pfCmdDoneHandler   Function pointer when command is done
+* \param[in] u4SetQueryInfoLen  The length of the set/query buffer
+* \param[in] pucInfoBuffer      Pointer to set/query buffer
+*
+*
+* \retval WLAN_STATUS_PENDING
+* \retval WLAN_STATUS_FAILURE
+*/
+/*----------------------------------------------------------------------------*/
 WLAN_STATUS
-_wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
+wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
 			  UINT_8 ucCID,
 			  BOOLEAN fgSetQuery,
 			  BOOLEAN fgNeedResp,
@@ -64,8 +81,7 @@ _wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
 			  PFN_CMD_DONE_HANDLER pfCmdDoneHandler,
 			  PFN_CMD_TIMEOUT_HANDLER pfCmdTimeoutHandler,
 			  UINT_32 u4SetQueryInfoLen,
-			  PUINT_8 pucInfoBuffer, OUT PVOID pvSetQueryBuffer, IN UINT_32 u4SetQueryBufferLen,
-			  IN COMMAND_TYPE eCmdType)
+			  PUINT_8 pucInfoBuffer, OUT PVOID pvSetQueryBuffer, IN UINT_32 u4SetQueryBufferLen)
 {
 	P_GLUE_INFO_T prGlueInfo;
 	P_CMD_INFO_T prCmdInfo;
@@ -91,7 +107,7 @@ _wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
 	DBGLOG(REQ, TRACE, "ucCmdSeqNum =%d\n", ucCmdSeqNum);
 
 	/* Setup common CMD Info Packet */
-	prCmdInfo->eCmdType = eCmdType;
+	prCmdInfo->eCmdType = COMMAND_TYPE_NETWORK_IOCTL;
 	prCmdInfo->eNetworkType = NETWORK_TYPE_P2P_INDEX;
 	prCmdInfo->u2InfoBufLen = (UINT_16) (CMD_HDR_SIZE + u4SetQueryInfoLen);
 	prCmdInfo->pfCmdDoneHandler = pfCmdDoneHandler;
@@ -122,40 +138,6 @@ _wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
 	GLUE_SET_EVENT(prGlueInfo);
 	return WLAN_STATUS_PENDING;
 }
-
-/*----------------------------------------------------------------------------*/
-/*!
-* \brief command packet generation utility
-*
-* \param[in] prAdapter          Pointer to the Adapter structure.
-* \param[in] ucCID              Command ID
-* \param[in] fgSetQuery         Set or Query
-* \param[in] fgNeedResp         Need for response
-* \param[in] pfCmdDoneHandler   Function pointer when command is done
-* \param[in] u4SetQueryInfoLen  The length of the set/query buffer
-* \param[in] pucInfoBuffer      Pointer to set/query buffer
-*
-*
-* \retval WLAN_STATUS_PENDING
-* \retval WLAN_STATUS_FAILURE
-*/
-/*----------------------------------------------------------------------------*/
-WLAN_STATUS
-wlanoidSendSetQueryP2PCmd(IN P_ADAPTER_T prAdapter,
-			  UINT_8 ucCID,
-			  BOOLEAN fgSetQuery,
-			  BOOLEAN fgNeedResp,
-			  BOOLEAN fgIsOid,
-			  PFN_CMD_DONE_HANDLER pfCmdDoneHandler,
-			  PFN_CMD_TIMEOUT_HANDLER pfCmdTimeoutHandler,
-			  UINT_32 u4SetQueryInfoLen,
-			  PUINT_8 pucInfoBuffer, OUT PVOID pvSetQueryBuffer, IN UINT_32 u4SetQueryBufferLen)
-{
-	return _wlanoidSendSetQueryP2PCmd(prAdapter, ucCID, fgSetQuery, fgNeedResp, fgIsOid,
-		pfCmdDoneHandler, pfCmdTimeoutHandler, u4SetQueryInfoLen, pucInfoBuffer, pvSetQueryBuffer,
-		u4SetQueryBufferLen, COMMAND_TYPE_NETWORK_IOCTL);
-}
-
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -254,15 +236,15 @@ wlanoidSetAddP2PKey(IN P_ADAPTER_T prAdapter,
 		return WLAN_STATUS_SUCCESS;
 #endif /* CFG_SUPPORT_TDLS */
 
-	return _wlanoidSendSetQueryP2PCmd(prAdapter,
+	return wlanoidSendSetQueryP2PCmd(prAdapter,
 					 CMD_ID_ADD_REMOVE_KEY,
 					 TRUE,
 					 FALSE,
 					 TRUE,
 					 nicCmdEventSetCommon,
 					 NULL,
-					 sizeof(CMD_802_11_KEY), (PUINT_8)&rCmdKey,
-					 pvSetBuffer, u4SetBufferLen, COMMAND_TYPE_KEY_IOCTL);
+					 sizeof(CMD_802_11_KEY), (PUINT_8) & rCmdKey,
+					 pvSetBuffer, u4SetBufferLen);
 }
 
 
@@ -341,7 +323,7 @@ _wlanoidSetAddP2PTDLSKey(IN P_ADAPTER_T prAdapter,
 					 CMD_ID_ADD_REMOVE_KEY,
 					 TRUE,
 					 FALSE,
-					 FALSE,
+					 TRUE,
 					 nicCmdEventSetCommon,
 					 NULL,
 					 sizeof(CMD_802_11_KEY), (PUINT_8) &rCmdKey, pvSetBuffer, u4SetBufferLen);

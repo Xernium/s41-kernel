@@ -422,6 +422,55 @@ int charger_dev_enable_otg(struct charger_device *charger_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_otg);
 
+int charger_dev_set_stop_charg(struct charger_device *charger_dev, bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_stop_charg)
+		return charger_dev->ops->set_stop_charg(charger_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_stop_charg);
+
+int charger_dev_enable_cfo(struct charger_device *charger_dev, bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->enable_cfo)
+		return charger_dev->ops->enable_cfo(charger_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_cfo);
+
+int charger_dev_set_usbsw(struct charger_device *charger_dev, u32 swtch)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+			charger_dev->ops->set_usbsw)
+		return charger_dev->ops->set_usbsw(charger_dev, swtch);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_usbsw);
+
+int charger_dev_short_dpdm(struct charger_device *charger_dev, bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+			charger_dev->ops->short_dpdm)
+		return
+			charger_dev->ops->short_dpdm(charger_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_short_dpdm);
+
+int charger_dev_ping_ic(struct charger_device *charger_dev)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->ping_ic)
+		return charger_dev->ops->ping_ic(charger_dev);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_ping_ic);
+
+
 int charger_dev_enable_discharge(struct charger_device *charger_dev, bool en)
 {
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->enable_discharge)

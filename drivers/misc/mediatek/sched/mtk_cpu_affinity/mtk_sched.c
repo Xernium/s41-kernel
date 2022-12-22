@@ -77,18 +77,14 @@ static void mt_sched_check_tasks(void)
 {
 	struct mt_task *tmp, *tmp2;
 	unsigned long irq_flags;
-	struct task_struct *tsk;
 
 	spin_lock_irqsave(&mt_sched_spinlock, irq_flags);
-	rcu_read_lock();
 	list_for_each_entry_safe(tmp, tmp2, &mt_task_head.list, list) {
-		tsk = find_task_by_vpid(tmp->pid);
-		if (!tsk) {
+		if (tmp->pid != tmp->p->pid) {
 			list_del(&(tmp->list));
 			kfree(tmp);
 		}
 	}
-	rcu_read_unlock();
 	spin_unlock_irqrestore(&mt_sched_spinlock, irq_flags);
 }
 
@@ -102,7 +98,6 @@ static long __mt_sched_addaffinity(struct task_struct *p, const struct cpumask *
 	struct mt_task *tmp, *tmp2;
 	unsigned long irq_flags;
 	int find = 0;
-	struct task_struct *tsk;
 
 	new = kmalloc(sizeof(struct mt_task), GFP_KERNEL);
 	if (!new)
@@ -114,20 +109,17 @@ static long __mt_sched_addaffinity(struct task_struct *p, const struct cpumask *
 	cpumask_copy(&new->mask, new_mask);
 
 	spin_lock_irqsave(&mt_sched_spinlock, irq_flags);
-	rcu_read_lock();
 	list_for_each_entry_safe(tmp, tmp2, &mt_task_head.list, list) {
-		tsk = find_task_by_vpid(tmp->pid);
-		if (tsk) {
-			if (!find && (tmp->p == p)) {
-				cpumask_copy(&tmp->mask, new_mask);
-				find = 1;
-			}
-		} else {
+		if (tmp->pid != tmp->p->pid) {
 			list_del(&(tmp->list));
 			kfree(tmp);
+			continue;
+		}
+		if (!find && (tmp->p == p)) {
+			find = 1;
+			cpumask_copy(&tmp->mask, new_mask);
 		}
 	}
-	rcu_read_unlock();
 
 	if (!find)
 		list_add(&(new->list), &(mt_task_head.list));
@@ -423,24 +415,6 @@ static long sched_ioctl_ioctl(struct file *filp, unsigned int cmd, unsigned long
 
 		retval = __mt_sched_exitaffinity(pid);
 		break;
-#ifdef CONFIG_MTK_SCHED_VIP_TASKS
-	case IOCTL_SETVIP:
-		if (copy_from_user(&pid, (int __user *)arg, sizeof(pid))) {
-			retval = -EFAULT;
-			goto done;
-		}
-
-		retval = vip_task_set(pid, true);
-		break;
-	case IOCTL_UNSETVIP:
-		if (copy_from_user(&pid, (int __user *)arg, sizeof(pid))) {
-			retval = -EFAULT;
-			goto done;
-		}
-
-		retval = vip_task_set(pid, false);
-		break;
-#endif
 	default:
 		retval = -ENOTTY;
 	}
@@ -473,7 +447,7 @@ static int __init sched_ioctl_init(void)
 	if (sched_ioctl_cdev == NULL) {
 		pr_debug("MT_SCHED: cdev_alloc failed\n");
 		ret = -1;
-		goto out_err3;
+		goto out_err2;
 	}
 
 	cdev_init(sched_ioctl_cdev, &sched_ioctl_fops);
@@ -481,29 +455,24 @@ static int __init sched_ioctl_init(void)
 	ret = cdev_add(sched_ioctl_cdev, sched_dev_num, 1);
 	if (ret) {
 		pr_debug("MT_SCHED: Char device add failed\n");
-		goto out_err3;
+		goto out_err2;
 	}
 
 	sched_class = class_create(THIS_MODULE, "scheddrv");
 	if (IS_ERR(sched_class)) {
 		pr_debug("Unable to create class, err = %d\n", (int)PTR_ERR(sched_class));
-		goto out_err2;
-	}
-	class_dev = device_create(sched_class, NULL, sched_dev_num, NULL, "mtk_sched");
-	if (IS_ERR(class_dev)) {
-		pr_debug("Unable to create device, err = %d\n", (int)PTR_ERR(class_dev));
 		goto out_err1;
 	}
+	class_dev = device_create(sched_class, NULL, sched_dev_num, NULL, "mtk_sched");
 
 	pr_alert("MT_SCHED: Init complete, device major number = %d\n", MAJOR(sched_dev_num));
 
 	goto out;
 
- out_err1:
 	class_destroy(sched_class);
- out_err2:
+ out_err1:
 	cdev_del(sched_ioctl_cdev);
- out_err3:
+ out_err2:
 	unregister_chrdev_region(sched_dev_num, 1);
  out:
 	return ret;

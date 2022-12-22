@@ -57,7 +57,6 @@ struct sched_lock_event {
 #define SCHED_TICK 0
 
 DECLARE_PER_CPU(struct sched_block_event, ISR_mon);
-DECLARE_PER_CPU(struct sched_block_event, IPI_mon);
 DECLARE_PER_CPU(struct sched_block_event, SoftIRQ_mon);
 DECLARE_PER_CPU(struct sched_block_event, tasklet_mon);
 DECLARE_PER_CPU(struct sched_block_event, hrt_mon);
@@ -81,8 +80,6 @@ DECLARE_PER_CPU(unsigned long long, local_timer_te);
 
 extern void mt_trace_ISR_start(int id);
 extern void mt_trace_ISR_end(int id);
-extern void mt_trace_IPI_start(int id);
-extern void mt_trace_IPI_end(int id);
 extern void mt_trace_SoftIRQ_start(int id);
 extern void mt_trace_SoftIRQ_end(int id);
 extern void mt_trace_tasklet_start(void *func);

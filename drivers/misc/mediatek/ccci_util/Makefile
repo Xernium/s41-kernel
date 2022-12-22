@@ -20,6 +20,9 @@ ENABLE_CCCI_UTIL=n
 ifeq ($(CONFIG_MTK_ECCCI_DRIVER), y)
 ENABLE_CCCI_UTIL=y
 endif
+ifeq ($(CONFIG_MTK_CCCI_EXT), y)
+ENABLE_CCCI_UTIL=y
+endif
 
 ifeq ($(ENABLE_CCCI_UTIL), y)
 
@@ -33,7 +36,6 @@ ccci_util_lib-y += ccci_private_log.o
 ccci_util_lib-y += ccci_util_lib_time.o
 ccci_util_lib-y += ccci_util_lib_main.o
 ccci_util_lib-y += ccci_util_ld_md_errno.o
-ccci_util_lib-y += ccci_util_broadcast.o
 
 endif
 

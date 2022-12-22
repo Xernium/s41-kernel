@@ -16,8 +16,6 @@
 #ifndef __ASM_PGTABLE_H
 #define __ASM_PGTABLE_H
 
-
-
 #include <asm/bug.h>
 #include <asm/proc-fns.h>
 
@@ -38,13 +36,19 @@
  *
  * VMEMAP_SIZE: allows the whole linear region to be covered by a struct page array
  *	(rounded up to PUD_SIZE).
- * VMALLOC_START: beginning of the kernel vmalloc space
+ * VMALLOC_START: beginning of the kernel VA space
  * VMALLOC_END: extends to the available space below vmmemmap, PCI I/O space,
  *	fixed mappings and modules
  */
 #define VMEMMAP_SIZE		ALIGN((1UL << (VA_BITS - PAGE_SHIFT)) * sizeof(struct page), PUD_SIZE)
 
-#define VMALLOC_START		(MODULES_END)
+#ifndef CONFIG_KASAN
+#define VMALLOC_START		(VA_START)
+#else
+#include <asm/kasan.h>
+#define VMALLOC_START		(KASAN_SHADOW_END + SZ_64K)
+#endif
+
 #define VMALLOC_END		(PAGE_OFFSET - PUD_SIZE - VMEMMAP_SIZE - SZ_64K)
 
 #define VMEMMAP_START		(VMALLOC_END + SZ_64K)
@@ -55,8 +59,6 @@
 
 #ifndef __ASSEMBLY__
 
-#include <asm/alternative.h>
-#include <asm/fixmap.h>
 #include <linux/mmdebug.h>
 
 extern void __pte_error(const char *file, int line, unsigned long val);
@@ -121,8 +123,8 @@ extern void __pgd_error(const char *file, int line, unsigned long val);
  * ZERO_PAGE is a global shared page that is always zero: used
  * for zero-mapped memory areas etc..
  */
-extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
-#define ZERO_PAGE(vaddr)	virt_to_page(empty_zero_page)
+extern struct page *empty_zero_page;
+#define ZERO_PAGE(vaddr)	(empty_zero_page)
 
 #define pte_ERROR(pte)		__pte_error(__FILE__, __LINE__, pte_val(pte))
 
@@ -133,6 +135,16 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 #define pte_none(pte)		(!pte_val(pte))
 #define pte_clear(mm,addr,ptep)	set_pte(ptep, __pte(0))
 #define pte_page(pte)		(pfn_to_page(pte_pfn(pte)))
+
+/* Find an entry in the third-level page table. */
+#define pte_index(addr)		(((addr) >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
+
+#define pte_offset_kernel(dir,addr)	(pmd_page_vaddr(*(dir)) + pte_index(addr))
+
+#define pte_offset_map(dir,addr)	pte_offset_kernel((dir), (addr))
+#define pte_offset_map_nested(dir,addr)	pte_offset_kernel((dir), (addr))
+#define pte_unmap(pte)			do { } while (0)
+#define pte_unmap_nested(pte)		do { } while (0)
 
 /*
  * The following only work if pte_present(). Undefined behaviour otherwise.
@@ -156,16 +168,6 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 #define pte_valid(pte)		(!!(pte_val(pte) & PTE_VALID))
 #define pte_valid_not_user(pte) \
 	((pte_val(pte) & (PTE_VALID | PTE_USER)) == PTE_VALID)
-#define pte_valid_young(pte) \
-	((pte_val(pte) & (PTE_VALID | PTE_AF)) == (PTE_VALID | PTE_AF))
-
-/*
- * Could the pte be present in the TLB? We must check mm_tlb_flush_pending
- * so that we don't erroneously return false for pages that have been
- * remapped as PROT_NONE but are yet to be flushed from the TLB.
- */
-#define pte_accessible(mm, pte)	\
-	(mm_tlb_flush_pending(mm) ? pte_present(pte) : pte_valid_young(pte))
 
 static inline pte_t clear_pte_bit(pte_t pte, pgprot_t prot)
 {
@@ -216,18 +218,12 @@ static inline pte_t pte_mkspecial(pte_t pte)
 
 static inline pte_t pte_mkcont(pte_t pte)
 {
-	pte = set_pte_bit(pte, __pgprot(PTE_CONT));
-	return set_pte_bit(pte, __pgprot(PTE_TYPE_PAGE));
+	return set_pte_bit(pte, __pgprot(PTE_CONT));
 }
 
 static inline pte_t pte_mknoncont(pte_t pte)
 {
 	return clear_pte_bit(pte, __pgprot(PTE_CONT));
-}
-
-static inline pmd_t pmd_mkcont(pmd_t pmd)
-{
-	return __pmd(pmd_val(pmd) | PMD_SECT_CONT);
 }
 
 static inline void set_pte(pte_t *ptep, pte_t pte)
@@ -303,7 +299,7 @@ static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 /*
  * Hugetlb definitions.
  */
-#define HUGE_MAX_HSTATE		4
+#define HUGE_MAX_HSTATE		2
 #define HPAGE_SHIFT		PMD_SHIFT
 #define HPAGE_SIZE		(_AC(1, UL) << HPAGE_SHIFT)
 #define HPAGE_MASK		(~(HPAGE_SIZE - 1))
@@ -429,30 +425,12 @@ static inline void pmd_clear(pmd_t *pmdp)
 	set_pmd(pmdp, __pmd(0));
 }
 
-static inline phys_addr_t pmd_page_paddr(pmd_t pmd)
+static inline pte_t *pmd_page_vaddr(pmd_t pmd)
 {
-	return pmd_val(pmd) & PHYS_MASK & (s32)PAGE_MASK;
+	return __va(pmd_val(pmd) & PHYS_MASK & (s32)PAGE_MASK);
 }
 
-/* Find an entry in the third-level page table. */
-#define pte_index(addr)		(((addr) >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
-
-#define pte_offset_phys(dir,addr)	(pmd_page_paddr(*(dir)) + pte_index(addr) * sizeof(pte_t))
-#define pte_offset_kernel(dir,addr)	((pte_t *)__va(pte_offset_phys((dir), (addr))))
-
-#define pte_offset_map(dir,addr)	pte_offset_kernel((dir), (addr))
-#define pte_offset_map_nested(dir,addr)	pte_offset_kernel((dir), (addr))
-#define pte_unmap(pte)			do { } while (0)
-#define pte_unmap_nested(pte)		do { } while (0)
-
-#define pte_set_fixmap(addr)		((pte_t *)set_fixmap_offset(FIX_PTE, addr))
-#define pte_set_fixmap_offset(pmd, addr)	pte_set_fixmap(pte_offset_phys(pmd, addr))
-#define pte_clear_fixmap()		clear_fixmap(FIX_PTE)
-
 #define pmd_page(pmd)		pfn_to_page(__phys_to_pfn(pmd_val(pmd) & PHYS_MASK))
-
-/* use ONLY for statically allocated translation tables */
-#define pte_offset_kimg(dir,addr)	((pte_t *)__phys_to_kimg(pte_offset_phys((dir), (addr))))
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -480,36 +458,20 @@ static inline void pud_clear(pud_t *pudp)
 	set_pud(pudp, __pud(0));
 }
 
-static inline phys_addr_t pud_page_paddr(pud_t pud)
+static inline pmd_t *pud_page_vaddr(pud_t pud)
 {
-	return pud_val(pud) & PHYS_MASK & (s32)PAGE_MASK;
+	return __va(pud_val(pud) & PHYS_MASK & (s32)PAGE_MASK);
 }
 
 /* Find an entry in the second-level page table. */
 #define pmd_index(addr)		(((addr) >> PMD_SHIFT) & (PTRS_PER_PMD - 1))
 
-#define pmd_offset_phys(dir, addr)	(pud_page_paddr(*(dir)) + pmd_index(addr) * sizeof(pmd_t))
-#define pmd_offset(dir, addr)		((pmd_t *)__va(pmd_offset_phys((dir), (addr))))
-
-#define pmd_set_fixmap(addr)		((pmd_t *)set_fixmap_offset(FIX_PMD, addr))
-#define pmd_set_fixmap_offset(pud, addr)	pmd_set_fixmap(pmd_offset_phys(pud, addr))
-#define pmd_clear_fixmap()		clear_fixmap(FIX_PMD)
+static inline pmd_t *pmd_offset(pud_t *pud, unsigned long addr)
+{
+	return (pmd_t *)pud_page_vaddr(*pud) + pmd_index(addr);
+}
 
 #define pud_page(pud)		pfn_to_page(__phys_to_pfn(pud_val(pud) & PHYS_MASK))
-
-/* use ONLY for statically allocated translation tables */
-#define pmd_offset_kimg(dir,addr)	((pmd_t *)__phys_to_kimg(pmd_offset_phys((dir), (addr))))
-
-#else
-
-#define pud_page_paddr(pud)	({ BUILD_BUG(); 0; })
-
-/* Match pmd_offset folding in <asm/generic/pgtable-nopmd.h> */
-#define pmd_set_fixmap(addr)		NULL
-#define pmd_set_fixmap_offset(pudp, addr)	((pmd_t *)pudp)
-#define pmd_clear_fixmap()
-
-#define pmd_offset_kimg(dir,addr)	((pmd_t *)dir)
 
 #endif	/* CONFIG_PGTABLE_LEVELS > 2 */
 
@@ -532,36 +494,20 @@ static inline void pgd_clear(pgd_t *pgdp)
 	set_pgd(pgdp, __pgd(0));
 }
 
-static inline phys_addr_t pgd_page_paddr(pgd_t pgd)
+static inline pud_t *pgd_page_vaddr(pgd_t pgd)
 {
-	return pgd_val(pgd) & PHYS_MASK & (s32)PAGE_MASK;
+	return __va(pgd_val(pgd) & PHYS_MASK & (s32)PAGE_MASK);
 }
 
 /* Find an entry in the frst-level page table. */
 #define pud_index(addr)		(((addr) >> PUD_SHIFT) & (PTRS_PER_PUD - 1))
 
-#define pud_offset_phys(dir, addr)	(pgd_page_paddr(*(dir)) + pud_index(addr) * sizeof(pud_t))
-#define pud_offset(dir, addr)		((pud_t *)__va(pud_offset_phys((dir), (addr))))
-
-#define pud_set_fixmap(addr)		((pud_t *)set_fixmap_offset(FIX_PUD, addr))
-#define pud_set_fixmap_offset(pgd, addr)	pud_set_fixmap(pud_offset_phys(pgd, addr))
-#define pud_clear_fixmap()		clear_fixmap(FIX_PUD)
+static inline pud_t *pud_offset(pgd_t *pgd, unsigned long addr)
+{
+	return (pud_t *)pgd_page_vaddr(*pgd) + pud_index(addr);
+}
 
 #define pgd_page(pgd)		pfn_to_page(__phys_to_pfn(pgd_val(pgd) & PHYS_MASK))
-
-/* use ONLY for statically allocated translation tables */
-#define pud_offset_kimg(dir,addr)	((pud_t *)__phys_to_kimg(pud_offset_phys((dir), (addr))))
-
-#else
-
-#define pgd_page_paddr(pgd)	({ BUILD_BUG(); 0;})
-
-/* Match pud_offset folding in <asm/generic/pgtable-nopud.h> */
-#define pud_set_fixmap(addr)		NULL
-#define pud_set_fixmap_offset(pgdp, addr)	((pud_t *)pgdp)
-#define pud_clear_fixmap()
-
-#define pud_offset_kimg(dir,addr)	((pud_t *)dir)
 
 #endif  /* CONFIG_PGTABLE_LEVELS > 3 */
 
@@ -570,15 +516,10 @@ static inline phys_addr_t pgd_page_paddr(pgd_t pgd)
 /* to find an entry in a page-table-directory */
 #define pgd_index(addr)		(((addr) >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
 
-#define pgd_offset_raw(pgd, addr)	((pgd) + pgd_index(addr))
-
-#define pgd_offset(mm, addr)	(pgd_offset_raw((mm)->pgd, (addr)))
+#define pgd_offset(mm, addr)	((mm)->pgd+pgd_index(addr))
 
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
-
-#define pgd_set_fixmap(addr)	((pgd_t *)set_fixmap_offset(FIX_PGD, addr))
-#define pgd_clear_fixmap()	clear_fixmap(FIX_PGD)
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {
@@ -624,7 +565,6 @@ static inline int ptep_test_and_clear_young(struct vm_area_struct *vma,
 	unsigned int tmp, res;
 
 	asm volatile("//	ptep_test_and_clear_young\n"
-	ALTERNATIVE("nop", "dmb sy", ARM64_WORKAROUND_855872)
 	"	prfm	pstl1strm, %2\n"
 	"1:	ldxr	%0, %2\n"
 	"	ubfx	%w3, %w0, %5, #1	// extract PTE_AF (young)\n"
@@ -655,7 +595,6 @@ static inline pte_t ptep_get_and_clear(struct mm_struct *mm,
 	unsigned int tmp;
 
 	asm volatile("//	ptep_get_and_clear\n"
-	ALTERNATIVE("nop", "dmb sy", ARM64_WORKAROUND_855872)
 	"	prfm	pstl1strm, %2\n"
 	"1:	ldxr	%0, %2\n"
 	"	stxr	%w1, xzr, %2\n"
@@ -685,7 +624,6 @@ static inline void ptep_set_wrprotect(struct mm_struct *mm, unsigned long addres
 	unsigned long tmp;
 
 	asm volatile("//	ptep_set_wrprotect\n"
-	ALTERNATIVE("nop", "dmb sy", ARM64_WORKAROUND_855872)
 	"	prfm	pstl1strm, %2\n"
 	"1:	ldxr	%0, %2\n"
 	"	tst	%0, %4			// check for hw dirty (!PTE_RDONLY)\n"
@@ -743,8 +681,7 @@ extern int kern_addr_valid(unsigned long addr);
 
 #include <asm-generic/pgtable.h>
 
-void pgd_cache_init(void);
-#define pgtable_cache_init	pgd_cache_init
+#define pgtable_cache_init() do { } while (0)
 
 /*
  * On AArch64, the cache coherency is handled via the set_pte_at() function.

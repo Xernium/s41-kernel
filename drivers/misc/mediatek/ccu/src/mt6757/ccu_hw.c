@@ -22,7 +22,6 @@
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <linux/dma-mapping.h>
-#include <linux/spinlock.h>
 #include <m4u.h>
 
 #include <linux/io.h> /*for mb();*/
@@ -54,7 +53,7 @@ static char g_ccu_sensor_name_main2[SENSOR_NAME_MAX_LEN];
 static struct ccu_sensor_info g_ccu_sensor_info_sub  = {-1, NULL};
 static char g_ccu_sensor_name_sub[SENSOR_NAME_MAX_LEN];
 
-ccu_mailbox_t *pMailBox[MAX_MAILBOX_NUM];
+volatile ccu_mailbox_t *pMailBox[MAX_MAILBOX_NUM];
 static ccu_msg_t receivedCcuCmd;
 static ccu_msg_t CcuAckCmd;
 static uint32_t i2c_buffer_mva;
@@ -72,8 +71,6 @@ struct ap_task_manage_t ap_task_manage;
 static CCU_INFO_STRUCT ccuInfo;
 static volatile bool bWaitCond;
 static unsigned int g_LogBufIdx = 1;
-
-static int _ccu_powerdown(void);
 
 static inline unsigned int CCU_MsToJiffies(unsigned int Ms)
 {
@@ -104,7 +101,6 @@ static void isr_sp_task(void)
 	MUINT32 sp_task = ccu_read_reg(ccu_base, CCU_STA_REG_SP_ISR_TASK);
 	MUINT32 i2c_transac_len;
 	MBOOL i2c_do_dma_en;
-	unsigned long flags;
 
 	switch (sp_task) {
 	case APISR_SP_TASK_TRIGGER_I2C:
@@ -117,11 +113,7 @@ static void isr_sp_task(void)
 			/*LOG_DBG("i2c_transac_len: %d\n", i2c_transac_len);*/
 			/*LOG_DBG("i2c_do_dma_en: %d\n", i2c_do_dma_en);*/
 
-			/*Use spinlock to avoid trigger i2c after i2c cg turned off*/
-			spin_lock_irqsave(&ccuInfo.SpinLockI2cPower, flags);
-			if (ccuInfo.IsI2cPoweredOn == 1 && ccuInfo.IsI2cPowerDisabling == 0)
-				ccu_trigger_i2c(i2c_transac_len, i2c_do_dma_en);
-			spin_unlock_irqrestore(&ccuInfo.SpinLockI2cPower, flags);
+			ccu_trigger_i2c(i2c_transac_len, i2c_do_dma_en);
 
 			ccu_write_reg(ccu_base, CCU_STA_REG_SP_ISR_TASK, 0);
 
@@ -314,13 +306,10 @@ static bool users_queue_is_empty(void)
 
 	list_for_each(head, &ccu_dev->user_list) {
 		user = vlist_node_of(head, ccu_user_t);
-		mutex_lock(&user->data_mutex);
 		if (!list_empty(&user->enque_ccu_cmd_list)) {
-			mutex_unlock(&user->data_mutex);
 			ccu_unlock_user_mutex();
 			return false;
 		}
-		mutex_unlock(&user->data_mutex);
 	}
 
 	ccu_unlock_user_mutex();
@@ -359,10 +348,10 @@ static int ccu_enque_cmd_loop(void *arg)
 		/* consume the user's queue */
 		list_for_each(head, &ccu_dev->user_list) {
 			user = vlist_node_of(head, ccu_user_t);
-			mutex_lock(&user->data_mutex);
+			/*mutex_lock(&user->data_mutex);*/
 			/* flush thread will handle the remaining queue if flush */
 			if (user->flush || list_empty(&user->enque_ccu_cmd_list)) {
-				mutex_unlock(&user->data_mutex);
+				/*mutex_unlock(&user->data_mutex);*/
 				continue;
 			}
 
@@ -371,18 +360,18 @@ static int ccu_enque_cmd_loop(void *arg)
 
 			list_del_init(vlist_link(cmd, ccu_cmd_st));
 			user->running = true;
-			mutex_unlock(&user->data_mutex);
+			/*mutex_unlock(&user->data_mutex);*/
 
 			LOG_DBG("%s +:new command\n", __func__);
 			ccu_send_command(cmd);
 
-			mutex_lock(&user->data_mutex);
+			/*mutex_lock(&user->data_mutex);*/
 			list_add_tail(vlist_link(cmd, ccu_cmd_st), &user->deque_ccu_cmd_list);
 			user->running = false;
 
 			LOG_DBG("list_empty(%d)\n", (int)list_empty(&user->deque_ccu_cmd_list));
 
-			mutex_unlock(&user->data_mutex);
+			/*mutex_unlock(&user->data_mutex);*/
 
 			wake_up_interruptible_all(&user->deque_wait);
 
@@ -399,6 +388,45 @@ static int ccu_enque_cmd_loop(void *arg)
 	LOG_DBG("-:%s\n", __func__);
 	return 0;
 }
+
+#if 0
+static int ccu_alloc_mva_of_binary_data(uint64_t addr_binary)
+{
+	int ret;
+	uint32_t mva_reset_vector = CCU_MVA_RESET_VECTOR;
+	uint32_t mva_main_program = CCU_MVA_MAIN_PROGRAM;
+
+	/* Todo: remove this log*/
+	LOG_INF("alloc binary mva. addr_binary:0x%lx, main_program_size:0x%x\n",
+				(unsigned long int) addr_binary,
+				CCU_SIZE_MAIN_PROGRAM + CCU_SIZE_RESERVED_INSTRUCT + CCU_SIZE_ALGO_AREA);
+
+
+	ret = m4u_alloc_mva(m4u_client, CCUG_OF_M4U_PORT,
+				addr_binary, NULL,
+				CCU_SIZE_RESET_VECTOR,
+				M4U_PROT_READ | M4U_PROT_WRITE,
+				M4U_FLAGS_FIX_MVA, &mva_reset_vector);
+	if (ret) {
+		LOG_ERR("fail to allocate mva of reset vecter!\n");
+		return -1;
+	}
+
+
+	ret = m4u_alloc_mva(m4u_client, CCUG_OF_M4U_PORT,
+				addr_binary + CCU_OFFSET_MAIN_PROGRAM, NULL,
+				CCU_SIZE_MAIN_PROGRAM + CCU_SIZE_RESERVED_INSTRUCT + CCU_SIZE_ALGO_AREA,
+				M4U_PROT_READ | M4U_PROT_WRITE,
+				M4U_FLAGS_FIX_MVA, &mva_main_program);
+	if (ret) {
+		LOG_ERR("fail to allocate mva of main program!\n");
+		m4u_dealloc_mva(m4u_client, CCUG_OF_M4U_PORT, mva_reset_vector);
+		return -1;
+	}
+
+	return 0;
+}
+#endif
 
 int ccu_config_m4u_port(void)
 {
@@ -455,9 +483,6 @@ int ccu_init_hw(ccu_device_t *device)
 	}
 	spin_lock_init(&(ccuInfo.SpinLockRTBC));
 	spin_lock_init(&(ccuInfo.SpinLockClock));
-	spin_lock_init(&(ccuInfo.SpinLockI2cPower));
-	ccuInfo.IsI2cPoweredOn = 0;
-	ccuInfo.IsI2cPowerDisabling = 0;
 	/**/
 	ccu_ap_task_mgr_init();
 
@@ -584,6 +609,31 @@ int ccu_get_i2c_dma_buf_addr(uint32_t *mva)
 	return ret;
 }
 
+static int ccu_check_status(void)
+{
+	size_t i;
+	uint32_t status = CCU_STATE_READY;
+
+	/* wait one second, if not ready or busy*/
+	for (i = 0; i < 500; i++) {
+		switch (status) {
+		case CCU_STATE_READY:
+		case CCU_STATE_IDLE:
+			return 0;
+		case CCU_STATE_NOT_READY:
+		case CCU_STATE_BUSY:
+			/*timeout = schedule_timeout(msecs_to_jiffies(10));*/
+			mdelay(10);
+			break;
+		case CCU_STATE_ERROR:
+		case CCU_STATE_TERMINATED:
+			return -EIO;
+		}
+	}
+	LOG_ERR("It is still busy after wait 5 seconds.\n");
+	return -EBUSY;
+}
+
 int ccu_memcpy(volatile void *dest, volatile void *src, int length)
 {
 	int i = 0;
@@ -619,6 +669,17 @@ int ccu_send_command(ccu_cmd_st *pCmd)
 
 	lock_command();
 	LOG_DBG("call ccu to do enque buffers\n");
+
+	ret = ccu_check_status();
+	if (ret) {
+		pCmd->status = CCU_ENG_STATUS_BUSY;
+		goto out;
+	}
+
+	if (ret) {
+		LOG_ERR("fail to allocate mva for the pointer to struct cmd, ret=%d\n", ret);
+		goto out;
+	}
 
 	/* 1. push to mailbox_send */
 	LOG_DBG("send command: id(%d), in(%x), out(%x)\n",
@@ -705,80 +766,31 @@ int ccu_power(ccu_power_t *power)
 		LOG_DBG("LogBuf_mva[0](0x%x)\n", power->workBuf.mva_log[0]);
 		LOG_DBG("LogBuf_mva[1](0x%x)\n", power->workBuf.mva_log[1]);
 
-		ccuInfo.IsI2cPoweredOn = 1;
-		ccuInfo.IsCcuPoweredOn = 1;
 	} else {
 		/*CCU Power off*/
-		ret = _ccu_powerdown();
+		g_ccu_sensor_current_fps = -1;
+
+		/*Check CCU halt status*/
+		while (ccu_read_reg_bit(ccu_base, DONE_ST, CCU_HALT) == 0)
+			mdelay(1);
+
+		/*Set CCU_A_RESET. CCU_HW_RST=1*/
+		ccu_write_reg_bit(ccu_base, RESET, CCU_HW_RST, 1);
+		/*CG*/
+		/*CCU_SET_BIT(camsys_base, 12);*/
+		ccu_clock_disable();
+		ccu_i2c_buf_mode_en(0);
+
+		m4u_dealloc_mva(m4u_client, CCUG_OF_M4U_PORT, i2c_buffer_mva);
 	}
 
 	LOG_DBG("-:%s\n", __func__);
 	return ret;
 }
 
-int ccu_force_powerdown(void)
-{
-	int ret = 0;
-
-	if (ccuInfo.IsCcuPoweredOn == 1) {
-		LOG_WRN("CCU kernel drv released on CCU running, try to force shutdown\n");
-		/*Set special isr task to MSG_TO_CCU_SHUTDOWN*/
-		ccu_write_reg(ccu_base, CCU_INFO29, MSG_TO_CCU_SHUTDOWN);
-		/*Interrupt to CCU*/
-		ccu_write_reg(ccu_base, CCU_INT, 1);
-
-		ret = _ccu_powerdown();
-
-		if (ret < 0)
-			return ret;
-
-		LOG_WRN("CCU force shutdown success\n");
-	}
-
-	return 0;
-}
-
-static int _ccu_powerdown(void)
-{
-	int32_t timeout = 10;
-	unsigned long flags;
-
-	g_ccu_sensor_current_fps = -1;
-
-	while (ccu_read_reg_bit(ccu_base, DONE_ST, CCU_HALT) == 0) {
-		mdelay(1);
-		LOG_DBG("wait ccu shutdown done\n");
-		LOG_DBG("ccu shutdown stat: %x\n", ccu_read_reg_bit(ccu_base, DONE_ST, CCU_HALT));
-		timeout = timeout - 1;
-	}
-
-	if (timeout <= 0) {
-		LOG_ERR("_ccu_powerdown timeout\n");
-		return -ETIMEDOUT;
-	}
-
-	/*Set CCU_A_RESET. CCU_HW_RST=1*/
-	ccu_write_reg_bit(ccu_base, RESET, CCU_HW_RST, 1);
-	/*CCF*/
-	ccu_clock_disable();
-
-	spin_lock_irqsave(&ccuInfo.SpinLockI2cPower, flags);
-	ccuInfo.IsI2cPowerDisabling = 1;
-	spin_unlock_irqrestore(&ccuInfo.SpinLockI2cPower, flags);
-
-	ccu_i2c_buf_mode_en(0);
-	ccuInfo.IsI2cPoweredOn = 0;
-	ccuInfo.IsI2cPowerDisabling = 0;
-	ccuInfo.IsCcuPoweredOn = 0;
-
-	m4u_dealloc_mva(m4u_client, CCUG_OF_M4U_PORT, i2c_buffer_mva);
-
-	return 0;
-}
-
 int ccu_run(void)
 {
-	int32_t timeout = 100;
+	int32_t timeout = 10;
 	ccu_mailbox_t *ccuMbPtr = NULL;
 	ccu_mailbox_t *apMbPtr = NULL;
 
@@ -816,10 +828,10 @@ int ccu_run(void)
 	* Driver wait CCU main initialize done and query INFO00 & INFO01 as mailbox address
 	*/
 	pMailBox[MAILBOX_SEND] =
-	    (ccu_mailbox_t *)(uintptr_t)(dmem_base +
+	    (volatile ccu_mailbox_t *)(dmem_base +
 				       ccu_read_reg(ccu_base, CCU_DATA_REG_MAILBOX_CCU));
 	pMailBox[MAILBOX_GET] =
-	    (ccu_mailbox_t *)(uintptr_t)(dmem_base +
+	    (volatile ccu_mailbox_t *)(dmem_base +
 				       ccu_read_reg(ccu_base, CCU_DATA_REG_MAILBOX_APMCU));
 
 
@@ -831,10 +843,10 @@ int ccu_run(void)
 	/*tell ccu that driver has initialized mailbox*/
 	ccu_write_reg(ccu_base, CCU_STA_REG_SW_INIT_DONE, 0);
 
-	timeout = 100;
-	while (ccu_read_reg(ccu_base, CCU_STA_REG_SW_INIT_DONE) != CCU_STATUS_INIT_DONE_2 && (timeout >= 0)) {
-		mdelay(10);
-		LOG_DBG("wait ccu 2nd initial done\n");
+	timeout = 10;
+	while (ccu_read_reg(ccu_base, CCU_STA_REG_SW_INIT_DONE) != CCU_STATUS_INIT_DONE_2) {
+		mdelay(1);
+		LOG_DBG("wait ccu log test\n");
 		timeout = timeout - 1;
 	}
 
@@ -942,7 +954,7 @@ int ccu_i2c_ctrl(unsigned char i2c_write_id, int transfer_len)
 
 int ccu_read_info_reg(int regNo)
 {
-	int *offset = (int *)(uintptr_t)(ccu_base + 0x60 + regNo * 4);
+	int *offset = (int *)(ccu_base + 0x60 + regNo * 4);
 
 	LOG_DBG("ccu_read_info_reg: %x\n", (unsigned int)(*offset));
 
@@ -998,9 +1010,4 @@ void ccu_get_sensor_name(char **sensor_name)
 	sensor_name[0] = g_ccu_sensor_info_main.sensor_name_string;
 	sensor_name[1] = g_ccu_sensor_info_sub.sensor_name_string;
 	sensor_name[2] = g_ccu_sensor_info_main2.sensor_name_string;
-}
-
-int ccu_query_power_status(void)
-{
-	return ccuInfo.IsCcuPoweredOn;
 }

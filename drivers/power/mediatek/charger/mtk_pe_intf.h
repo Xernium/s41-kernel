@@ -14,17 +14,17 @@
 #ifndef __MTK_PE_INTF_H
 #define __MTK_PE_INTF_H
 
-
 struct mtk_pe {
-	struct mutex access_lock;
-	struct mutex pmic_sync_lock;
-	struct wake_lock suspend_lock;
-	int ta_vchr_org; /* uA */
-	bool to_check_chr_type;
-	bool to_tune_ta_vchr;
-	bool is_cable_out_occur; /* Plug out happened while detecting PE+ */
-	bool is_connect;
-	bool is_enabled;
+	struct mutex pe_access_lock;
+	struct mutex pe_pmic_sync_lock;
+	struct wake_lock pe_suspend_lock;
+	int pe_ta_vchr_org; /* uA */
+	bool pe_to_check_chr_type;
+	bool pe_to_tune_ta_vchr;
+	bool pe_is_cable_out_occur; /* Plug out happened while detecting PE+ */
+	bool pe_is_connect;
+	bool pe_is_enabled;
+
 };
 
 #ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT
@@ -62,12 +62,12 @@ static inline int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 {
 	return -ENOTSUPP;
 }
-
-static inline int mtk_pe_plugout_reset(struct charger_manager *pinfo)
+#if 0
+static inline int mtk_pe_plugout_reset(void)
 {
 	return -ENOTSUPP;
 }
-
+#endif
 static inline int mtk_pe_set_charging_current(struct charger_manager *pinfo,
 	unsigned int *ichg, unsigned int *aicr)
 {

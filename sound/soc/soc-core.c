@@ -1775,9 +1775,6 @@ static int soc_cleanup_card_resources(struct snd_soc_card *card)
 	for (i = 0; i < card->num_aux_devs; i++)
 		soc_remove_aux_dev(card, i);
 
-	/* free the ALSA card at first; this syncs with pending operations */
-	snd_card_free(card->snd_card);
-
 	/* remove and free each DAI */
 	soc_remove_dai_links(card);
 
@@ -1789,7 +1786,9 @@ static int soc_cleanup_card_resources(struct snd_soc_card *card)
 
 	snd_soc_dapm_free(&card->dapm);
 
+	snd_card_free(card->snd_card);
 	return 0;
+
 }
 
 /* removes a socdev */
@@ -3534,6 +3533,39 @@ unsigned int snd_soc_of_parse_daifmt(struct device_node *np,
 	return format;
 }
 EXPORT_SYMBOL_GPL(snd_soc_of_parse_daifmt);
+
+/**
+ * snd_soc_info_multi_ext - external single mixer info callback
+ * @kcontrol: mixer control
+ * @uinfo: control element information
+ *
+ * Callback to provide information about a single external mixer control.
+ * that accepts multiple input.
+ *
+ * Returns 0 for success.
+ */
+int snd_soc_info_multi_ext(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_info *uinfo)
+{
+	struct soc_multi_mixer_control *mc =
+		(struct soc_multi_mixer_control *)kcontrol->private_value;
+	int platform_max;
+
+	if (!mc->platform_max)
+		mc->platform_max = mc->max;
+	platform_max = mc->platform_max;
+
+	if (platform_max == 1 && !strnstr(kcontrol->id.name, " Volume", 30))
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_BOOLEAN;
+	else
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+
+	uinfo->count = mc->count;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = platform_max;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_soc_info_multi_ext);
 
 static int snd_soc_get_dai_name(struct of_phandle_args *args,
 				const char **dai_name)

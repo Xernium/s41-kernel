@@ -17,31 +17,28 @@
 #include <linux/ioctl.h>
 #define FDVT_IOC_MAGIC    'N'
 
-#define SIG_ERESTARTSYS 512
-
 #ifdef CONFIG_COMPAT
 /*64 bit*/
 #include <linux/fs.h>
 #include <linux/compat.h>
 #endif
 
-struct FDVTRegIO {
+typedef struct {
 	unsigned int  *pAddr;
 	unsigned int  *pData;
 	unsigned int  u4Count;
-};
-#define FDVTRegIO struct FDVTRegIO
+} FDVTRegIO;
 
 #ifdef CONFIG_COMPAT
 
-struct compat_FDVTRegIO {
+typedef struct {
 	compat_uptr_t pAddr;
 	compat_uptr_t pData;
 	unsigned int  u4Count;
-};
-#define compat_FDVTRegIO struct compat_FDVTRegIO
+} compat_FDVTRegIO;
 
 #endif
+
 
 /*below is control message*/
 #define FDVT_IOC_INIT_SETPARA_CMD       _IO(FDVT_IOC_MAGIC, 0x00)

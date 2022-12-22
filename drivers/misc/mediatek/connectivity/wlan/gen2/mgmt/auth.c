@@ -44,7 +44,7 @@ APPEND_VAR_IE_ENTRY_T txAuthIETable[] = {
 HANDLE_IE_ENTRY_T rxAuthIETable[] = {
 	{ELEM_ID_CHALLENGE_TEXT, authHandleIEChallengeText},
 /* since we only need to indicate these IEs to supplicant, so process them in one function
-* Now we disable it, because no FtIEs need to indicate to supplicant
+  * Now we disable it, because no FtIEs need to indicate to supplicant
 **/
 #if 0
 	{ELEM_ID_MOBILITY_DOMAIN, authHandleFtIEs},
@@ -53,7 +53,6 @@ HANDLE_IE_ENTRY_T rxAuthIETable[] = {
 	{ELEM_ID_RESOURCE_INFO_CONTAINER, authHandleFtIEs},
 	{ELEM_ID_TIMEOUT_INTERVAL, authHandleFtIEs},
 #endif
-
 };
 
 /*******************************************************************************
@@ -498,9 +497,6 @@ WLAN_STATUS authCheckRxAuthFrameTransSeq(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T
 {
 	P_WLAN_AUTH_FRAME_T prAuthFrame;
 	UINT_16 u2RxTransactionSeqNum;
-#if CFG_IGNORE_INVALID_AUTH_TSN
-	P_STA_RECORD_T prStaRec;
-#endif
 
 	ASSERT(prSwRfb);
 
@@ -534,21 +530,6 @@ WLAN_STATUS authCheckRxAuthFrameTransSeq(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T
 	default:
 		DBGLOG(SAA, WARN, "Strange Authentication Packet: Auth Trans Seq No = %d, Error Status Code = %d\n",
 				   u2RxTransactionSeqNum, prAuthFrame->u2StatusCode);
-#if CFG_IGNORE_INVALID_AUTH_TSN
-		prStaRec = cnmGetStaRecByIndex(prAdapter, prSwRfb->ucStaRecIdx);
-		if (!prStaRec)
-			return WLAN_STATUS_SUCCESS;
-		switch (prStaRec->eAuthAssocState) {
-		case SAA_STATE_SEND_AUTH1:
-		case SAA_STATE_WAIT_AUTH2:
-		case SAA_STATE_SEND_AUTH3:
-		case SAA_STATE_WAIT_AUTH4:
-			saaFsmRunEventRxAuth(prAdapter, prSwRfb);
-			break;
-		default:
-			break;
-		}
-#endif
 		break;
 	}
 
@@ -602,11 +583,9 @@ authCheckRxAuthFrameStatus(IN P_ADAPTER_T prAdapter,
 	/* WLAN_GET_FIELD_16(&prAuthFrame->u2AuthTransSeqNo, &u2RxTransactionSeqNum); */
 	u2RxTransactionSeqNum = prAuthFrame->u2AuthTransSeqNo;	/* NOTE(Kevin): Optimized for ARM */
 	if (u2RxTransactionSeqNum != u2TransactionSeqNum) {
-		DBGLOG(SAA, WARN, "Invalid Auth frame with Transaction Seq No = %d\n", u2RxTransactionSeqNum);
-#if !CFG_IGNORE_INVALID_AUTH_TSN
+		DBGLOG(SAA, WARN, "Discard Auth frame with Transaction Seq No = %d\n", u2RxTransactionSeqNum);
 		*pu2StatusCode = STATUS_CODE_AUTH_OUT_OF_SEQ;
 		return WLAN_STATUS_FAILURE;
-#endif
 	}
 	/* 4 <3> Get the Status code */
 	/* WLAN_GET_FIELD_16(&prAuthFrame->u2StatusCode, &u2RxStatusCode); */
@@ -714,7 +693,6 @@ WLAN_STATUS authProcessRxAuth2_Auth4Frame(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_
 			prAdapter->prGlueInfo->rFtEventParam.ies_len = u2IEsLen;
 		}
 	}
-
 	return WLAN_STATUS_SUCCESS;
 
 }				/* end of authProcessRxAuth2_Auth4Frame() */
@@ -987,8 +965,8 @@ authSendDeauthFrame(IN P_ADAPTER_T prAdapter,
 	prMsduInfo->ucTxSeqNum = nicIncreaseTxSeqNum(prAdapter);
 	prMsduInfo->pfTxDoneHandler = pfTxDoneHandler;
 	prMsduInfo->fgIsBasicRate = TRUE;
-	DBGLOG(SAA, INFO, "Sending Deauth, network: %d, seqNo %d, reason: %d\n",
-		eNetTypeIndex, prMsduInfo->ucTxSeqNum, u2ReasonCode);
+	DBGLOG(SAA, INFO, "Sending Deauth, network: %d, seqNo %d\n",
+		eNetTypeIndex, prMsduInfo->ucTxSeqNum);
 
 	/* 4 <8> Inform TXM to send this Deauthentication frame. */
 	nicTxEnqueueMsdu(prAdapter, prMsduInfo);
@@ -1107,10 +1085,8 @@ VOID authAddMDIE(IN P_ADAPTER_T prAdapter, IN OUT P_MSDU_INFO_T prMsduInfo)
 {
 	struct FT_IES *prFtIEs = &prAdapter->prGlueInfo->rFtIeForTx;
 	PUINT_8 pucBuffer = (PUINT_8)prMsduInfo->prPacket + prMsduInfo->u2FrameLength;
-	UINT_8 ucBssIdx = prMsduInfo->ucNetworkType;
 
-	if (!IS_BSS_INDEX_VALID(ucBssIdx) ||
-		!IS_BSS_AIS(GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIdx)) || !prFtIEs->prMDIE)
+	if (!prFtIEs->prMDIE)
 		return;
 	prMsduInfo->u2FrameLength += 5; /* IE size for MD IE is fixed, it is 5 */
 	kalMemCopy(pucBuffer, prFtIEs->prMDIE, 5);
@@ -1122,8 +1098,7 @@ UINT_32 authCalculateRSNIELen(P_ADAPTER_T prAdapter,
 	ENUM_PARAM_AUTH_MODE_T eAuthMode = prAdapter->rWifiVar.rConnSettings.eAuthMode;
 	struct FT_IES *prFtIEs = &prAdapter->prGlueInfo->rFtIeForTx;
 
-	if (!IS_BSS_INDEX_VALID(eNetTypeIndex) || !IS_BSS_AIS(GET_BSS_INFO_BY_INDEX(prAdapter, eNetTypeIndex)) ||
-		!prFtIEs->prRsnIE || (eAuthMode != AUTH_MODE_WPA2_FT && eAuthMode != AUTH_MODE_WPA2_FT_PSK))
+	if (!prFtIEs->prRsnIE || (eAuthMode != AUTH_MODE_WPA2_FT && eAuthMode != AUTH_MODE_WPA2_FT_PSK))
 		return 0;
 	return IE_SIZE(prFtIEs->prRsnIE);
 }
@@ -1134,13 +1109,10 @@ VOID authAddRSNIE(IN P_ADAPTER_T prAdapter, IN OUT P_MSDU_INFO_T prMsduInfo)
 	struct FT_IES *prFtIEs = &prAdapter->prGlueInfo->rFtIeForTx;
 	PUINT_8 pucBuffer = (PUINT_8)prMsduInfo->prPacket + prMsduInfo->u2FrameLength;
 	UINT_32 ucRSNIeSize = 0;
-	UINT_8 ucBssIdx = prMsduInfo->ucNetworkType;
 
-	if (!IS_BSS_INDEX_VALID(ucBssIdx) || !IS_BSS_AIS(GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIdx)) ||
-		!prFtIEs->prRsnIE || (eAuthMode != AUTH_MODE_WPA2_FT && eAuthMode != AUTH_MODE_WPA2_FT_PSK))
+	if (!prFtIEs->prRsnIE || (eAuthMode != AUTH_MODE_WPA2_FT && eAuthMode != AUTH_MODE_WPA2_FT_PSK))
 		return;
 	ucRSNIeSize = IE_SIZE(prFtIEs->prRsnIE);
 	prMsduInfo->u2FrameLength += ucRSNIeSize;
 	kalMemCopy(pucBuffer, prFtIEs->prRsnIE, ucRSNIeSize);
 }
-

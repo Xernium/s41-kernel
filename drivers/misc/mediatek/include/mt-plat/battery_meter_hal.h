@@ -39,14 +39,14 @@ do {									\
 #define bm_err(fmt, args...)   \
 do {									\
 	if (Enable_FGADC_LOG >= BMLOG_ERROR_LEVEL) {			\
-		pr_notice(fmt, ##args); \
+		pr_err(fmt, ##args); \
 	}								   \
 } while (0)
 
 #define bm_warn(fmt, args...)   \
 do {									\
 	if (Enable_FGADC_LOG >= BMLOG_WARNING_LEVEL) {		\
-		pr_notice(fmt, ##args); \
+		pr_warn(fmt, ##args); \
 	}								   \
 } while (0)
 
@@ -85,7 +85,7 @@ do {									\
 /* ============================================================ */
 /* ENUM */
 /* ============================================================ */
-enum BATTERY_METER_CTRL_CMD {
+typedef enum {
 	BATTERY_METER_CMD_HW_FG_INIT,
 
 	BATTERY_METER_CMD_GET_HW_FG_CURRENT,	/* fgauge_read_current */
@@ -107,18 +107,21 @@ enum BATTERY_METER_CTRL_CMD {
 	BATTERY_METER_CMD_SET_LOW_BAT_INTERRUPT,
 	BATTERY_METER_CMD_GET_LOW_BAT_INTERRUPT_STATUS,
 	BATTERY_METER_CMD_GET_REFRESH_HW_OCV,
+	BATTERY_METER_CMD_GET_IS_HW_OCV_READY,
+
+	BATTERY_METER_CMD_SET_META_CALI_CURRENT,
+	BATTERY_METER_CMD_META_CALI_CAR_TUNE_VALUE,
+	BATTERY_METER_CMD_GET_ZCV_INT_HW_OCV,
 
 	BATTERY_METER_CMD_NUMBER
-};
+} BATTERY_METER_CTRL_CMD;
 
 #ifndef BATTERY_BOOL
 #define BATTERY_BOOL
-#define kal_bool enum KAL_BOOL
-
-enum KAL_BOOL {
+typedef enum {
 	KAL_FALSE = 0,
 	KAL_TRUE  = 1,
-};
+} kal_bool;
 #endif
 
 
@@ -129,7 +132,7 @@ enum KAL_BOOL {
 /* ============================================================ */
 /* typedef */
 /* ============================================================ */
-typedef signed int(*BATTERY_METER_CONTROL) (enum BATTERY_METER_CTRL_CMD cmd, void *data);
+typedef signed int(*BATTERY_METER_CONTROL) (BATTERY_METER_CTRL_CMD cmd, void *data);
 
 /* ============================================================ */
 /* External Variables */
@@ -139,6 +142,6 @@ extern int Enable_FGADC_LOG;
 /* ============================================================ */
 /* External function */
 /* ============================================================ */
-extern signed int bm_ctrl_cmd(enum BATTERY_METER_CTRL_CMD cmd, void *data);
+extern signed int bm_ctrl_cmd(BATTERY_METER_CTRL_CMD cmd, void *data);
 
 #endif				/* #ifndef _BATTERY_METER_HAL_H */

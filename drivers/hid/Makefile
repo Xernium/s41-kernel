@@ -108,5 +108,6 @@ obj-$(CONFIG_HID_SENSOR_CUSTOM_SENSOR)	+= hid-sensor-custom.o
 obj-$(CONFIG_USB_HID)		+= usbhid/
 obj-$(CONFIG_USB_MOUSE)		+= usbhid/
 obj-$(CONFIG_USB_KBD)		+= usbhid/
+obj-y				+= hid-ftm.o
 
 obj-$(CONFIG_I2C_HID)		+= i2c-hid/

@@ -141,7 +141,7 @@ int m4u_get_pte_info(m4u_domain_t *domain, unsigned int mva, m4u_pte_info_t *pte
 {
 	imu_pgd_t *pgd;
 	imu_pte_t *pte = NULL;
-	unsigned long pa = 0;
+	unsigned int pa = 0;
 	unsigned int size;
 	int valid = 1;
 
@@ -151,20 +151,10 @@ int m4u_get_pte_info(m4u_domain_t *domain, unsigned int mva, m4u_pte_info_t *pte
 		pte = imu_pte_offset_map(pgd, mva);
 		if (F_PTE_TYPE_GET(imu_pte_val(*pte)) == F_PTE_TYPE_LARGE) {
 			pa = imu_pte_val(*pte) & F_PTE_PA_LARGE_MSK;
-			if (imu_pte_val(*pte) & F_PTE_BIT32_BIT)
-				pa |= 0x100000000;
-			if (imu_pte_val(*pte) & F_PTE_BIT33_BIT)
-				pa |= 0x200000000;
-
 			pa |= mva & (~F_PTE_PA_LARGE_MSK);
 			size = MMU_LARGE_PAGE_SIZE;
 		} else if (F_PTE_TYPE_GET(imu_pte_val(*pte)) == F_PTE_TYPE_SMALL) {
 			pa = imu_pte_val(*pte) & F_PTE_PA_SMALL_MSK;
-			if (imu_pte_val(*pte) & F_PTE_BIT32_BIT)
-				pa |= 0x100000000;
-			if (imu_pte_val(*pte) & F_PTE_BIT33_BIT)
-				pa |= 0x200000000;
-
 			pa |= mva & (~F_PTE_PA_SMALL_MSK);
 			size = MMU_SMALL_PAGE_SIZE;
 		} else {
@@ -175,20 +165,10 @@ int m4u_get_pte_info(m4u_domain_t *domain, unsigned int mva, m4u_pte_info_t *pte
 		pte = NULL;
 		if (F_PGD_TYPE_IS_SECTION(*pgd)) {
 			pa = imu_pgd_val(*pgd) & F_PGD_PA_SECTION_MSK;
-			if (imu_pgd_val(*pgd) & F_PGD_BIT32_BIT)
-				pa |= 0x100000000;
-			if (imu_pgd_val(*pgd) & F_PGD_BIT33_BIT)
-				pa |= 0x200000000;
-
 			pa |= mva & (~F_PGD_PA_SECTION_MSK);
 			size = MMU_SECTION_SIZE;
 		} else if (F_PGD_TYPE_IS_SUPERSECTION(*pgd)) {
 			pa = imu_pgd_val(*pgd) & F_PGD_PA_SUPERSECTION_MSK;
-			if (imu_pgd_val(*pgd) & F_PGD_BIT32_BIT)
-				pa |= 0x100000000;
-			if (imu_pgd_val(*pgd) & F_PGD_BIT33_BIT)
-				pa |= 0x200000000;
-
 			pa |= mva & (~F_PGD_PA_SUPERSECTION_MSK);
 			size = MMU_SUPERSECTION_SIZE;
 		} else {
@@ -523,13 +503,10 @@ int m4u_map_16M(m4u_domain_t *m4u_domain, unsigned int mva, phys_addr_t pa, unsi
 	}
 
 	mva &= F_PGD_PA_SUPERSECTION_MSK;
-	padscpt = ((unsigned int)pa & F_PGD_PA_SUPERSECTION_MSK);
-	if (pa > 0xffffffffL) {
-		if (!!(pa & 0x100000000LL))
-			padscpt = padscpt | F_PTE_BIT32_BIT;
-		if (!!(pa & 0x200000000LL))
-			padscpt = padscpt | F_PTE_BIT33_BIT;
-	}
+	if (pa > 0xffffffffL)
+		padscpt = (((unsigned int)pa & F_PTE_PA_SMALL_MSK) | F_PGD_BIT32_BIT);
+	else
+		padscpt = ((unsigned int)pa & F_PGD_PA_SUPERSECTION_MSK);
 
 	pgprot = __m4u_get_pgd_attr_16M(prot);
 
@@ -577,13 +554,10 @@ int m4u_map_1M(m4u_domain_t *m4u_domain, unsigned int mva, phys_addr_t pa, unsig
 	}
 
 	mva &= F_PGD_PA_SECTION_MSK;
-	padscpt = (unsigned int)(pa & F_PGD_PA_SECTION_MSK);
-	if (pa > 0xffffffffL) {
-		if (!!(pa & 0x100000000LL))
-			padscpt = padscpt | F_PTE_BIT32_BIT;
-		if (!!(pa & 0x200000000LL))
-			padscpt = padscpt | F_PTE_BIT33_BIT;
-	}
+	if (pa > 0xffffffffL)
+		padscpt = (((unsigned int)pa & F_PTE_PA_SMALL_MSK) | F_PGD_BIT32_BIT);
+	else
+		padscpt = (unsigned int)pa & F_PGD_PA_SECTION_MSK;
 
 	pgprot = __m4u_get_pgd_attr_1M(prot);
 
@@ -622,13 +596,10 @@ int m4u_map_64K(m4u_domain_t *m4u_domain, unsigned int mva, phys_addr_t pa, unsi
 	}
 
 	mva &= F_PTE_PA_LARGE_MSK;
-	padscpt = (unsigned int)pa & F_PTE_PA_LARGE_MSK;
-	if (pa > 0xffffffffL) {
-		if (!!(pa & 0x100000000LL))
-			padscpt = padscpt | F_PTE_BIT32_BIT;
-		if (!!(pa & 0x200000000LL))
-			padscpt = padscpt | F_PTE_BIT33_BIT;
-	}
+	if (pa > 0xffffffffL)
+		padscpt = (((unsigned int)pa & F_PTE_PA_SMALL_MSK) | F_PTE_BIT32_BIT);
+	else
+		padscpt = ((unsigned int)pa & F_PTE_PA_LARGE_MSK);
 
 	pgprot = __m4u_get_pgd_attr_page(prot);
 
@@ -702,13 +673,11 @@ int m4u_map_4K(m4u_domain_t *m4u_domain, unsigned int mva, phys_addr_t pa, unsig
 	}
 
 	mva &= F_PTE_PA_SMALL_MSK;
-	padscpt = (unsigned int)pa & F_PTE_PA_SMALL_MSK;
-	if (pa > 0xffffffffL) {
-		if (!!(pa & 0x100000000LL))
-			padscpt = padscpt | F_PTE_BIT32_BIT;
-		if (!!(pa & 0x200000000LL))
-			padscpt = padscpt | F_PTE_BIT33_BIT;
-	}
+	if (pa > 0xffffffffL)
+		padscpt = (((unsigned int)pa & F_PTE_PA_SMALL_MSK) | F_PTE_BIT32_BIT);
+	else
+		padscpt = ((unsigned int)pa & F_PTE_PA_SMALL_MSK);
+
 	pgprot = __m4u_get_pgd_attr_page(prot);
 
 	write_lock_domain(m4u_domain);

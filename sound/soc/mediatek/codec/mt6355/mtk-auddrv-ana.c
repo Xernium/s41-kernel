@@ -60,11 +60,11 @@ static DEFINE_SPINLOCK(ana_set_reg_lock);
 /*****************************************************************************
  *                         D A T A   T Y P E S
  *****************************************************************************/
-unsigned int Ana_Get_Reg(unsigned int offset)
+uint32 Ana_Get_Reg(uint32 offset)
 {
 	/* get pmic register */
 	int ret = 0;
-	unsigned int Rdata = 0;
+	uint32 Rdata = 0;
 #ifdef AUDIO_USING_WRAP_DRIVER
 	ret = pwrap_read(offset, &Rdata);
 #endif
@@ -73,12 +73,28 @@ unsigned int Ana_Get_Reg(unsigned int offset)
 }
 EXPORT_SYMBOL(Ana_Get_Reg);
 
-void Ana_Set_Reg(unsigned int offset, unsigned int value, unsigned int mask)
+void Ana_Set_Reg(uint32 offset, uint32 value, uint32 mask)
 {
 	/* set pmic register or analog CONTROL_IFACE_PATH */
 	int ret = 0;
-	unsigned int Reg_Value;
+	uint32 Reg_Value;
 	unsigned long flags = 0;
+
+#ifdef CEI_FACTORY
+	/* Hardcode headset volume for FTM loopback */
+	if (offset == AFE_DL_NLE_R_CFG0) {
+		PRINTK_ANA_REG("Hardcode AFE_DL_NLE_R_CFG0 for FTM, org value=0x%x mask=0x%x\n",
+			value, mask);
+		value = 0x0000;
+		mask = 0x003f;
+	}
+	if (offset == AFE_DL_NLE_L_CFG0) {
+		PRINTK_ANA_REG("Hardcode AFE_DL_NLE_L_CFG0 for FTM, org value=0x%x mask=0x%x\n",
+			value, mask);
+		value = 0x0000;
+		mask = 0x003f;
+	}
+#endif
 
 	PRINTK_ANA_REG("Ana_Set_Reg offset= 0x%x , value = 0x%x mask = 0x%x\n", offset, value,
 		       mask);
@@ -252,7 +268,6 @@ void Ana_Log_Print(void)
 	pr_debug("ACCDET_CON14 = 0x%x\n", Ana_Get_Reg(ACCDET_CON14));
 	pr_debug("AUXADC_IMPEDANCE = 0x%x\n", Ana_Get_Reg(AUXADC_IMPEDANCE));
 	pr_debug("AUXADC_CON2 = 0x%x\n", Ana_Get_Reg(AUXADC_CON2));
-	pr_debug("RG_BUCK_VS1_VOTER_EN = 0x%x\n", Ana_Get_Reg(RG_BUCK_VS1_VOTER_EN));
 	pr_debug("-Ana_Log_Print\n");
 }
 EXPORT_SYMBOL(Ana_Log_Print);
@@ -565,8 +580,6 @@ int Ana_Debug_Read(char *buffer, const int size)
 		       Ana_Get_Reg(AUXADC_IMPEDANCE));
 	n += scnprintf(buffer + n, size - n, "AUXADC_CON2  = 0x%x\n",
 		       Ana_Get_Reg(AUXADC_CON2));
-	n += scnprintf(buffer + n, size - n, "RG_BUCK_VS1_VOTER_EN  = 0x%x\n",
-		       Ana_Get_Reg(RG_BUCK_VS1_VOTER_EN));
 	return n;
 }
 EXPORT_SYMBOL(Ana_Debug_Read);

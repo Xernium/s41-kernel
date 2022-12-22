@@ -293,12 +293,12 @@ void rdma_set_ultra_l(unsigned int idx, unsigned int bpp, void *handle, struct g
 		fill_rate = 960*mmsysclk*3/16; /* FIFO depth / us  */
 
 	if (idx == 0) {
-		consume_rate = (unsigned long long)rdma_golden_setting->dst_width
-				* rdma_golden_setting->dst_height * frame_rate * Bytes_per_sec;
+		consume_rate = rdma_golden_setting->dst_width * rdma_golden_setting->dst_height
+				*frame_rate * Bytes_per_sec;
 		do_div(consume_rate, 1000);
 
 	} else {
-		consume_rate = (unsigned long long)rdma_golden_setting->ext_dst_width
+		consume_rate = rdma_golden_setting->ext_dst_width
 				* rdma_golden_setting->ext_dst_height*frame_rate*Bytes_per_sec;
 		do_div(consume_rate, 1000);
 	}
@@ -331,7 +331,7 @@ void rdma_set_ultra_l(unsigned int idx, unsigned int bpp, void *handle, struct g
 
 
 	/* output valid should < total rdma data size, or hang will happen */
-	temp = (unsigned long long)rdma_golden_setting->rdma_width * rdma_golden_setting->rdma_height * Bytes_per_sec;
+	temp = rdma_golden_setting->rdma_width * rdma_golden_setting->rdma_height * Bytes_per_sec;
 	do_div(temp, 16);
 	temp -= 1;
 	output_valid_fifo_threshold = preultra_low < temp ? preultra_low : temp;
@@ -1035,10 +1035,10 @@ static inline int rdma_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 	/* cmdqRecSecureEnableDAPC(handle, (1LL << cmdq_engine)); */
 	if (rdma_is_sec[rdma_idx] == 0) {
 		DDPSVPMSG("[SVP] switch rdma%d to sec\n", rdma_idx);
-		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-			MMPROFILE_FLAG_START, 0, 0);
-		/*mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-		 *	MMPROFILE_FLAG_PULSE, rdma_idx, 1);
+		MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+			MMProfileFlagStart, 0, 0);
+		/*MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+		 *	MMProfileFlagPulse, rdma_idx, 1);
 		 */
 	}
 	rdma_is_sec[rdma_idx] = 1;
@@ -1102,61 +1102,15 @@ int rdma_switch_to_nonsec(enum DISP_MODULE_ENUM module, struct disp_ddp_path_con
 
 		cmdqRecDestroy(nonsec_switch_handle);
 		DDPSVPMSG("[SVP] switch rdma%d to nonsec\n", rdma_idx);
-		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-			MMPROFILE_FLAG_END, 0, 0);
-		/*mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-		 *	MMPROFILE_FLAG_PULSE, rdma_idx, 0);
+		MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+			MMProfileFlagEnd, 0, 0);
+		/*MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+		 *	MMProfileFlagPulse, rdma_idx, 0);
 		 */
 	}
 
 	rdma_is_sec[rdma_idx] = 0;
 
-	return 0;
-}
-
-int rdma_wait_sec_done(enum DISP_MODULE_ENUM module, struct disp_ddp_path_config *pConfig, void *handle)
-{
-	unsigned int rdma_idx = rdma_index(module);
-	enum CMDQ_ENG_ENUM cmdq_engine;
-	struct cmdqRecStruct *wait_handle;
-	int ret;
-
-	if (rdma_is_sec[rdma_idx] == 0)
-		return 0;
-
-	cmdq_engine = rdma_to_cmdq_engine(module);
-	/* rdma is in sec stat, we need to switch it to nonsec */
-
-	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP,
-			&(wait_handle));
-	if (ret)
-		DDPAEE("[SVP]fail to create disable handle %s ret=%d\n",
-			__func__, ret);
-
-	cmdqRecReset(wait_handle);
-
-	cmdqRecSetSecure(wait_handle, 1);
-
-	cmdqRecSecureEnablePortSecurity(wait_handle,
-		(1LL << cmdq_engine));
-
-	if (handle != NULL) {
-		/*Async Flush method*/
-		enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
-		/*cmdq_event_nonsec_end = module_to_cmdq_event_nonsec_end(module);*/
-		cmdq_event_nonsec_end = rdma_to_cmdq_event_nonsec_end(module);
-		cmdqRecSetEventToken(wait_handle, cmdq_event_nonsec_end);
-		cmdqRecFlushAsync(wait_handle);
-		cmdqRecWait(handle, cmdq_event_nonsec_end);
-	} else {
-		/*Sync Flush method*/
-		cmdqRecFlush(wait_handle);
-	}
-
-	cmdqRecDestroy(wait_handle);
-
-	mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-		MMPROFILE_FLAG_PULSE, 1, 1);
 	return 0;
 }
 
@@ -1185,8 +1139,6 @@ static int setup_rdma_sec(enum DISP_MODULE_ENUM module, struct disp_ddp_path_con
 		if (ret)
 			DDPAEE("[SVP]fail to setup_ovl_sec: %s ret=%d\n",
 				__func__, ret);
-	} else {
-		rdma_wait_sec_done(module, pConfig, NULL);
 	}
 
 	return is_engine_sec;

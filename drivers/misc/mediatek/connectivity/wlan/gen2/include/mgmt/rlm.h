@@ -102,7 +102,6 @@
 
 /* Radio Measurement Report Frame Max Length */
 #define RM_REPORT_FRAME_MAX_LENGTH                  1600
-#define RM_BCN_REPORT_SUB_ELEM_MAX_LENGTH           224
 
 /* beacon request mode definition */
 #define RM_BCN_REQ_PASSIVE_MODE                     0
@@ -110,6 +109,7 @@
 #define RM_BCN_REQ_TABLE_MODE                       2
 
 #define RLM_INVALID_POWER_LIMIT                     -127 /* dbm */
+
 #define RLM_MAX_TX_PWR		20	/* dbm */
 #define RLM_MIN_TX_PWR		8	/* dbm */
 
@@ -135,12 +135,10 @@ enum RM_REQ_PRIORITY {
 };
 
 struct NORMAL_SCAN_PARAMS {
-	PARAM_SSID_T arSSID[SCN_SSID_MAX_NUM];
-	UINT_8 aucScanIEBuf[MAX_IE_LENGTH];
+	P_PARAM_SSID_T prSSID;
+	PUINT_8 pucScanIE;
 	UINT_32 u4IELen;
-	UINT_8 ucSsidNum;
 	BOOLEAN fgExist;
-	BOOLEAN fgFull2Partial;
 };
 
 /* Beacon RM related parameters */
@@ -173,13 +171,6 @@ struct RADIO_MEASUREMENT_REPORT_PARAMS {
 	LINK_T rFreeReportLink;
 };
 
-typedef enum _ENUM_NET_ACTIVE_SRC_T {
-	NET_ACTIVE_SRC_NONE = 0,
-	NET_ACTIVE_SRC_CONNECT = 1,
-	NET_ACTIVE_SRC_SCAN = 2,
-	NET_ACTIVE_SRC_SCHED_SCAN = 4,
-	NET_ACTIVE_SRC_NUM
-} ENUM_NET_ACTIVE_SRC_T, *P_ENUM_NET_ACTIVE_SRC_T;
 /*******************************************************************************
 *                            P U B L I C   D A T A
 ********************************************************************************
@@ -194,10 +185,10 @@ typedef enum _ENUM_NET_ACTIVE_SRC_T {
 *                                 M A C R O S
 ********************************************************************************
 */
+
 #define RM_EXIST_REPORT(_prRmReportParam) \
 	(((struct RADIO_MEASUREMENT_REPORT_PARAMS *)_prRmReportParam)->u2ReportFrameLen == \
 	OFFSET_OF(ACTION_RM_REPORT_FRAME, aucInfoElem))
-
 /* It is used for RLM module to judge if specific network is valid
  * Note: Ad-hoc mode of AIS is not included now. (TBD)
  */
@@ -346,9 +337,7 @@ VOID rlmCancelRadioMeasurement(P_ADAPTER_T prAdapter);
 
 enum RM_REQ_PRIORITY rlmGetRmRequestPriority(PUINT_8 pucDestAddr);
 
-VOID rlmRunEventProcessNextRm(P_ADAPTER_T prAdapter, P_MSG_HDR_T prMsgHdr);
 
-VOID rlmScheduleNextRm(P_ADAPTER_T prAdapter);
 #if CFG_SUPPORT_P2P_ECSA
 void rlmGenActionCSHdr(u8 *buf,
 			u8 *da, u8 *sa, u8 *bssid,
@@ -371,14 +360,10 @@ VOID  rlmFreqToChannelExt(unsigned int freq,
 			int sec_channel,
 			u8 *op_class, u8 *channel);
 #endif
+VOID rlmRunEventProcessNextRm(P_ADAPTER_T prAdapter, P_MSG_HDR_T prMsgHdr);
 
-#if CFG_SUPPORT_RLM_ACT_NETWORK
-VOID rlmActivateNetwork(P_ADAPTER_T prAdapter, ENUM_NETWORK_TYPE_INDEX_T eNetworkTypeIdx,
-			ENUM_NET_ACTIVE_SRC_T eNetActiveSrcIdx);
+VOID rlmScheduleNextRm(P_ADAPTER_T prAdapter);
 
-VOID rlmDeactivateNetwork(P_ADAPTER_T prAdapter, ENUM_NETWORK_TYPE_INDEX_T eNetworkTypeIdx,
-			ENUM_NET_ACTIVE_SRC_T eNetActiveSrcIdx);
-#endif
 /*******************************************************************************
 *                              F U N C T I O N S
 ********************************************************************************

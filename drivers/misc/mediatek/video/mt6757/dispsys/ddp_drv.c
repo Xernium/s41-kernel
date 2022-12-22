@@ -15,6 +15,9 @@
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
+/* [CT41] S, Rear camera preview test sudden moment white screen in FTM mode */
+#include "mt-plat/mtk_boot_common.h"
+/* [CT41] E, Rear camera preview test sudden moment white screen in FTM mode */
 #include <linux/mm_types.h>
 #include <linux/module.h>
 #include <generated/autoconf.h>
@@ -344,6 +347,16 @@ static int __init disp_probe_1(void)
 	disp_init_irq();
 	disp_helper_option_init();
 
+	/* [CT41] S, Rear camera preview test sudden moment white screen in FTM mode */
+	/* DO NOT enable these in Factory mode */
+	pr_err("disp: disp_probe_1\n");
+	if (get_boot_mode() == FACTORY_BOOT) {
+		pr_err("disp: disp_probe_1 - get_boot_mode is FACTORY_BOOT\n");
+		disp_helper_set_option(DISP_OPT_IDLE_MGR, 0);
+		disp_helper_set_option(DISP_OPT_IDLEMGR_SWTCH_DECOUPLE, 0);
+		disp_helper_set_option(DISP_OPT_SMART_OVL, 0);
+	}
+	/* [CT41] E, Rear camera preview test sudden moment white screen in FTM mode */
 	if (!dispsys_dev) {
 		DDPERR("%s: dispsys_dev=NULL\n", __func__);
 		ASSERT(0);

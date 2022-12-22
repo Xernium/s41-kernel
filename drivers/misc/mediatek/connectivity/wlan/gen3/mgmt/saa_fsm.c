@@ -523,9 +523,9 @@ saaFsmRunEventTxDone(IN P_ADAPTER_T prAdapter, IN P_MSDU_INFO_T prMsduInfo, IN E
 
 	/* Trigger statistics log if Auth/Assoc Tx failed */
 	if (rTxDoneStatus != TX_RESULT_SUCCESS) {
-		DBGLOG(SAA, INFO, "EVENT-TX DONE: Status[%d] SeqNo[%d] Current Time = %ld\n",
-		       rTxDoneStatus, prMsduInfo->ucTxSeqNum, kalGetTimeTick());
 		wlanTriggerStatsLog(prAdapter, prAdapter->rWifiVar.u4StatsLogDuration);
+		DBGLOG(SAA, INFO, "EVENT-TX DONE: Current Time = %d status: %d, SeqNo: %d\n",
+			kalGetTimeTick(), rTxDoneStatus, prMsduInfo->ucTxSeqNum);
 	}
 
 	eNextState = prStaRec->eAuthAssocState;
@@ -723,7 +723,7 @@ static BOOLEAN saaCheckOverLoadRN(IN P_ADAPTER_T prAdapter, IN P_STA_RECORD_T pr
 	DBGLOG(SAA, INFO, "<SAA> eFrmType: %d, u4OverLoadRN times: %d\n", eFrmType, u4OverLoadRN);
 	if (u4OverLoadRN >= JOIN_MAX_RETRY_OVERLOAD_RN)
 		return FALSE;
-	prBssDesc = prAdapter->rWifiVar.rAisFsmInfo.prTargetBssDesc;
+	prBssDesc = scanSearchBssDescByBssid(prAdapter, prStaRec->aucMacAddr);
 	if (prBssDesc) {
 		aisAddBlacklist(prAdapter, prBssDesc);
 		if (prBssDesc->prBlack)
@@ -759,10 +759,8 @@ VOID saaFsmRunEventRxAuth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRfb)
 	}
 
 	/* We should have the corresponding Sta Record. */
-	 if (!prStaRec) {
-		DBGLOG(SAA, WARN, "Recv Auth w/o corresponding staRec, wlanIdx[%d]\n", prSwRfb->ucWlanIdx);
+	if (!prStaRec)
 		return;
-	}
 
 	if (!IS_AP_STA(prStaRec))
 		return;
@@ -796,8 +794,8 @@ VOID saaFsmRunEventRxAuth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRfb)
 				}
 			} else {
 				DBGLOG(SAA, INFO,
-				       "Auth Req was rejected by [" MACSTR "], StatusCode: %d\n",
-				       MAC2STR(prStaRec->aucMacAddr), u2StatusCode);
+				       "Auth was rejected by [" MACSTR "], StatusCode: %d\n",
+					MAC2STR(prStaRec->aucMacAddr), u2StatusCode);
 
 				eNextState = AA_STATE_IDLE;
 			}
@@ -806,8 +804,7 @@ VOID saaFsmRunEventRxAuth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRfb)
 			prStaRec->ucTxAuthAssocRetryCount = 0;
 
 #if CFG_SUPPORT_RN
-			if (IS_STA_IN_AIS(prStaRec) &&
-				saaCheckOverLoadRN(prAdapter, prStaRec, SAA_STATE_SEND_AUTH1))
+			if (saaCheckOverLoadRN(prAdapter, prStaRec, SAA_STATE_SEND_AUTH1))
 				break;
 #endif
 			saaFsmSteps(prAdapter, prStaRec, eNextState, (P_SW_RFB_T) NULL);
@@ -835,8 +832,8 @@ VOID saaFsmRunEventRxAuth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRfb)
 				eNextState = SAA_STATE_SEND_ASSOC1;
 			} else {
 				DBGLOG(SAA, INFO,
-				       "Auth Req was rejected by [" MACSTR "], StatusCode: %d\n",
-				       MAC2STR(prStaRec->aucMacAddr), u2StatusCode);
+				       "Auth was rejected by [" MACSTR "], StatusCode: %d\n",
+					MAC2STR(prStaRec->aucMacAddr), u2StatusCode);
 
 				eNextState = AA_STATE_IDLE;
 			}
@@ -881,10 +878,8 @@ WLAN_STATUS saaFsmRunEventRxAssoc(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRf
 	}
 
 	/* We should have the corresponding Sta Record. */
-	if (!prStaRec) {
-		DBGLOG(SAA, WARN, "Recv (Re)Assoc Resp w/o corresponding staRec, wlanIdx[%d]\n", prSwRfb->ucWlanIdx);
+	if (!prStaRec)
 		return rStatus;
-	}
 
 	if (!IS_AP_STA(prStaRec))
 		return rStatus;
@@ -894,7 +889,7 @@ WLAN_STATUS saaFsmRunEventRxAssoc(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwRf
 	switch (prStaRec->eAuthAssocState) {
 	case SAA_STATE_SEND_ASSOC1:
 	case SAA_STATE_WAIT_ASSOC2:
-		/* Check if the incoming frame is what we are waiting for */
+		/* TRUE if the incoming frame is what we are waiting for */
 		if (assocCheckRxReAssocRspFrameStatus(prAdapter, prSwRfb, &u2StatusCode) == WLAN_STATUS_SUCCESS) {
 
 			cnmTimerStopTimer(prAdapter, &prStaRec->rTxReqDoneOrRxRespTimer);
@@ -983,7 +978,7 @@ static VOID saaAutoReConnect(IN P_ADAPTER_T prAdapter, IN P_STA_RECORD_T prStaRe
 			prConnSettings->fgIsConnReqIssued = TRUE;
 			prConnSettings->fgIsDisconnectedByNonRequest = FALSE;
 			prAisBssInfo->u2DeauthReason = prStaRec->u2ReasonCode;
-			prBssDesc = prAdapter->rWifiVar.rAisFsmInfo.prTargetBssDesc;
+			prBssDesc = scanSearchBssDescByBssid(prAdapter, prStaRec->aucMacAddr);
 			if (prBssDesc) {
 				if (prStaRec->u2ReasonCode == REASON_CODE_DISASSOC_AP_OVERLOAD) {
 					struct AIS_BLACKLIST_ITEM *prBlackList = aisAddBlacklist(prAdapter, prBssDesc);
@@ -997,10 +992,10 @@ static VOID saaAutoReConnect(IN P_ADAPTER_T prAdapter, IN P_STA_RECORD_T prStaRe
 
 			aisFsmStateAbort(prAdapter, DISCONNECT_REASON_CODE_RADIO_LOST, TRUE);
 		} else if (!CHECK_FOR_TIMEOUT(rCurrentTime, prAisBssInfo->rConnTime,
-				  SEC_TO_SYSTIME(AIS_AUTORN_MIN_INTERVAL + 10))) {
+				  SEC_TO_SYSTIME(AIS_AUTORN_MIN_INTERVAL - 10))) {
 
 			DBGLOG(SAA, INFO, "<drv> AP deauth ok under reassoc 0x%x %x %x\n",
-				rCurrentTime, prAisBssInfo->rConnTime, SEC_TO_SYSTIME(AIS_AUTORN_MIN_INTERVAL + 10));
+				rCurrentTime, prAisBssInfo->rConnTime, SEC_TO_SYSTIME(AIS_AUTORN_MIN_INTERVAL - 10));
 
 			prAisBssInfo->fgDisConnReassoc = FALSE;
 			saaSendDisconnectMsgHandler(prAdapter, prStaRec, prAisBssInfo, eFrmType);
@@ -1009,7 +1004,6 @@ static VOID saaAutoReConnect(IN P_ADAPTER_T prAdapter, IN P_STA_RECORD_T prStaRe
 	}
 }
 #endif
-
 /*----------------------------------------------------------------------------*/
 /*!
 * @brief This function will check the incoming Deauth Frame.
@@ -1029,11 +1023,12 @@ WLAN_STATUS saaFsmRunEventRxDeauth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwR
 	prDeauthFrame = (P_WLAN_DEAUTH_FRAME_T) prSwRfb->pvHeader;
 
 	DBGLOG(SAA, INFO,
-	       "Recv Deauth from SA[" MACSTR "] DA[" MACSTR "] BSSID[" MACSTR "] ReasonCode[%d]\n",
-	       MAC2STR(prDeauthFrame->aucSrcAddr),
-	       MAC2STR(prDeauthFrame->aucDestAddr),
-	       MAC2STR(prDeauthFrame->aucBSSID),
-	       prDeauthFrame->u2ReasonCode);
+	"Rx Deauth frame ,DA[" MACSTR "] SA[" MACSTR "] BSSID[" MACSTR "] ReasonCode[0x%x] StaRecIdx[0x%x]\n",
+	MAC2STR(prDeauthFrame->aucDestAddr),
+	MAC2STR(prDeauthFrame->aucSrcAddr),
+	MAC2STR(prDeauthFrame->aucBSSID),
+	prDeauthFrame->u2ReasonCode,
+	prSwRfb->ucStaRecIdx);
 
 	do {
 		if (!prStaRec) {
@@ -1042,10 +1037,8 @@ WLAN_STATUS saaFsmRunEventRxDeauth(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prSwR
 		}
 
 		/* We should have the corresponding Sta Record. */
-		if (!prStaRec) {
-			DBGLOG(SAA, LOUD, "Recv Deauth w/o corresponding staRec, wlanIdx[%d]\n", prSwRfb->ucWlanIdx);
+		if (!prStaRec)
 			break;
-		}
 
 		if (IS_STA_IN_AIS(prStaRec)) {
 			P_BSS_INFO_T prAisBssInfo;
@@ -1221,11 +1214,10 @@ WLAN_STATUS saaFsmRunEventRxDisassoc(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prS
 	prDisassocFrame = (P_WLAN_DISASSOC_FRAME_T) prSwRfb->pvHeader;
 
 	DBGLOG(SAA, INFO,
-	       "Recv Disassoc from SA[" MACSTR "] DA[" MACSTR "] BSSID[" MACSTR "] ReasonCode[%d]\n",
-	       MAC2STR(prDisassocFrame->aucSrcAddr),
-	       MAC2STR(prDisassocFrame->aucDestAddr),
-	       MAC2STR(prDisassocFrame->aucBSSID),
-	       prDisassocFrame->u2ReasonCode);
+	       "Rx Disassoc frame from BSSID[" MACSTR "] DA[" MACSTR "] ReasonCode[0x%x]\n",
+		MAC2STR(prDisassocFrame->aucBSSID),
+		MAC2STR(prDisassocFrame->aucDestAddr),
+		prDisassocFrame->u2ReasonCode);
 
 	do {
 		if (!prStaRec) {
@@ -1234,10 +1226,8 @@ WLAN_STATUS saaFsmRunEventRxDisassoc(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T prS
 		}
 
 		/* We should have the corresponding Sta Record. */
-		if (!prStaRec) {
-			DBGLOG(SAA, LOUD, "Recv Disassoc w/o corresponding staRec, wlanIdx[%d]\n", prSwRfb->ucWlanIdx);
+		if (!prStaRec)
 			break;
-		}
 
 		if (IS_STA_IN_AIS(prStaRec)) {
 			P_BSS_INFO_T prAisBssInfo;

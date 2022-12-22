@@ -118,7 +118,7 @@ void rtc_set_writeif(bool enable)
 	}
 }
 
-void hal_rtc_set_spare_register(enum rtc_spare_enum cmd, u16 val)
+void hal_rtc_set_spare_register(rtc_spare_enum cmd, u16 val)
 {
 	u16 tmp_val;
 
@@ -126,7 +126,7 @@ void hal_rtc_set_spare_register(enum rtc_spare_enum cmd, u16 val)
 		tmp_val =
 		    rtc_read(rtc_spare_reg[cmd][RTC_REG]) & ~(rtc_spare_reg[cmd][RTC_MASK] <<
 							      rtc_spare_reg[cmd][RTC_SHIFT]);
-		hal_rtc_xinfo("rtc_spare_reg[%d] = {%x, %d, %d}\n", cmd,
+		hal_rtc_xinfo("rtc_spare_reg[%d] = {%d, %d, %d}\n", cmd,
 			      rtc_spare_reg[cmd][RTC_REG], rtc_spare_reg[cmd][RTC_MASK],
 			      rtc_spare_reg[cmd][RTC_SHIFT]);
 		rtc_write(rtc_spare_reg[cmd][RTC_REG],
@@ -136,12 +136,12 @@ void hal_rtc_set_spare_register(enum rtc_spare_enum cmd, u16 val)
 	}
 }
 
-u16 hal_rtc_get_spare_register(enum rtc_spare_enum cmd)
+u16 hal_rtc_get_spare_register(rtc_spare_enum cmd)
 {
 	u16 tmp_val;
 
 	if (cmd >= 0 && cmd < RTC_SPAR_NUM) {
-		hal_rtc_xinfo("rtc_spare_reg[%d] = {%x, %d, %d}\n", cmd,
+		hal_rtc_xinfo("rtc_spare_reg[%d] = {%d, %d, %d}\n", cmd,
 			      rtc_spare_reg[cmd][RTC_REG], rtc_spare_reg[cmd][RTC_MASK],
 			      rtc_spare_reg[cmd][RTC_SHIFT]);
 		tmp_val = rtc_read(rtc_spare_reg[cmd][RTC_REG]);
@@ -153,7 +153,6 @@ u16 hal_rtc_get_spare_register(enum rtc_spare_enum cmd)
 
 static void rtc_get_tick(struct rtc_time *tm)
 {
-	tm->tm_cnt = rtc_read(RTC_INT_CNT);
 	tm->tm_sec = rtc_read(RTC_TC_SEC);
 	tm->tm_min = rtc_read(RTC_TC_MIN);
 	tm->tm_hour = rtc_read(RTC_TC_HOU);
@@ -170,9 +169,7 @@ void hal_rtc_get_tick_time(struct rtc_time *tm)
 	rtc_write(RTC_BBPU, bbpu);
 	rtc_write_trigger();
 	rtc_get_tick(tm);
-	bbpu = rtc_read(RTC_BBPU) | RTC_BBPU_KEY | RTC_BBPU_RELOAD;
-	rtc_write(RTC_BBPU, bbpu);
-	if (rtc_read(RTC_INT_CNT) < tm->tm_cnt) {	/* SEC has carried */
+	if (rtc_read(RTC_TC_SEC) < tm->tm_sec) {	/* SEC has carried */
 		rtc_get_tick(tm);
 	}
 }

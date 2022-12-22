@@ -20,11 +20,7 @@
 #include <linux/threads.h>
 #include <asm/irq.h>
 
-#if !defined(CONFIG_GZ_V2_SUPPORT) && !defined(CONFIG_TRUSTY)
-#define NR_IPI	6
-#else
-#define NR_IPI 17
-#endif
+#define NR_IPI	5
 
 typedef struct {
 	unsigned int __softirq_pending;

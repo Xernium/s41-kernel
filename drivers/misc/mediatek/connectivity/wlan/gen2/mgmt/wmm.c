@@ -1,6 +1,4 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 as
 * published by the Free Software Foundation.
@@ -11,49 +9,17 @@
 * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 */
 
-/*******************************************************************************
-*                         C O M P I L E R   F L A G S
-********************************************************************************
-*/
+/******************************************************************************
+ *                         C O M P I L E R   F L A G S
+ *******************************************************************************
+ */
 
-/*******************************************************************************
+/******************************************************************************
 *                    E X T E R N A L   R E F E R E N C E S
-********************************************************************************
+*******************************************************************************
 */
 
 #include "precomp.h"
-
-/*******************************************************************************
-*                              C O N S T A N T S
-********************************************************************************
-*/
-UINT_8 const aucUp2ACIMap[8] = {ACI_BE, ACI_BK, ACI_BK, ACI_BE, ACI_VI, ACI_VI, ACI_VO, ACI_VO};
-
-/*******************************************************************************
-*                             D A T A   T Y P E S
-********************************************************************************
-*/
-
-/*******************************************************************************
-*                            P U B L I C   D A T A
-********************************************************************************
-*/
-
-/*******************************************************************************
-*                           P R I V A T E   D A T A
-********************************************************************************
-*/
-
-/*******************************************************************************
-*                                 M A C R O S
-********************************************************************************
-*/
-
-/*******************************************************************************
-*                   F U N C T I O N   D E C L A R A T I O N S
-********************************************************************************
-*/
-
 static VOID
 wmmTxTspecFrame(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 						  P_PARAM_QOS_TSPEC prTsParam);
@@ -61,6 +27,7 @@ static VOID wmmSyncAcParamWithFw(
 	P_ADAPTER_T prAdapter, UINT_8 ucAc, UINT_16 u2MediumTime, UINT_32 u4PhyRate);
 
 static void wmmGetTsmRptTimeout(P_ADAPTER_T prAdapter, ULONG ulParam);
+
 static VOID wmmQueryTsmResult(P_ADAPTER_T prAdapter, ULONG ulParam);
 static VOID
 wmmRemoveTSM(P_ADAPTER_T prAdapter, struct ACTIVE_RM_TSM_REQ *prActiveTsm, BOOLEAN fgNeedStop);
@@ -75,11 +42,7 @@ static VOID wmmMayDoTsReplacement(P_ADAPTER_T prAdapter, UINT_8 ucNewTid);
 #if 0
 static void DumpData(PUINT8 prAddr, UINT8 uLen, char *tag);
 #endif
-
-/*******************************************************************************
-*                              F U N C T I O N S
-********************************************************************************
-*/
+UINT_8 const aucUp2ACIMap[8] = {ACI_BE, ACI_BK, ACI_BK, ACI_BE, ACI_VI, ACI_VI, ACI_VO, ACI_VO};
 
 VOID wmmInit(IN P_ADAPTER_T prAdapter)
 {
@@ -93,7 +56,7 @@ VOID wmmInit(IN P_ADAPTER_T prAdapter)
 
 	LINK_INITIALIZE(&prWmmInfo->rActiveTsmReq);
 	prWmmInfo->rTriggeredTsmRptTime = 0;
-	DBGLOG(WMM, TRACE, "wmm init done\n");
+	DBGLOG(WMM, INFO, "wmm init done\n");
 }
 
 VOID wmmUnInit(IN P_ADAPTER_T prAdapter)
@@ -105,16 +68,16 @@ VOID wmmUnInit(IN P_ADAPTER_T prAdapter)
 	for (ucTid = 0; ucTid < WMM_TSPEC_ID_NUM; ucTid++, prTspecInfo++)
 		cnmTimerStopTimer(prAdapter, &prTspecInfo->rAddTsTimer);
 	wmmRemoveAllTsmMeasurement(prAdapter, FALSE);
-	DBGLOG(WMM, TRACE, "wmm uninit done\n");
+	DBGLOG(WMM, INFO, "wmm uninit done\n");
 }
 
 VOID
 wmmFillTsinfo(P_PARAM_QOS_TSINFO prTsInfo, PUINT_8 pucTsInfo)
 {
 	UINT_32 u4TsInfoValue = 0;
-	/*	|    0         |1-4  | 5-6 |	7-8          | 9           | 10  | 11-13 | 14-23  |
-	*	Traffic Type|TSID| Dir  |Access Policy|Reserved | PSB|	UP   |reserved|
-	*/
+	/* |    0         |1-4  | 5-6 |	7-8          | 9           | 10  | 11-13 | 14-23  |
+	 * Traffic Type|TSID| Dir  |Access Policy|Reserved | PSB|	UP   |reserved|
+	 */
 
 	u4TsInfoValue = prTsInfo->ucTrafficType & 0x1;
 	u4TsInfoValue |= (prTsInfo->ucTid & 0xf) << 1;
@@ -210,18 +173,12 @@ wmmTxTspecFrame(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 		DBGLOG(WMM, ERROR, "prStaRec NULL %d, prTsParam NULL %d\n", !prStaRec, !prTsParam);
 		return;
 	}
-
 	 /*build ADDTS for TID*/
 	 /*1 compose Action frame Fix field*/
 	prBssInfo = &(prAdapter->rWifiVar.arBssInfo[NETWORK_TYPE_AIS_INDEX]);
 	DBGLOG(WMM, INFO, "Tspec Action to AP="MACSTR"\n", MAC2STR(prStaRec->aucMacAddr));
 
 	prMsduInfo = cnmMgtPktAlloc(prAdapter, ACTION_ADDTS_REQ_FRAME_LEN);
-
-	if (prMsduInfo == NULL) {
-		DBGLOG(WMM, ERROR, "prMsduInfo is null!");
-		return;
-	}
 	prMsduInfo->eSrc = TX_PACKET_MGMT;
 	prMsduInfo->ucPacketType = HIF_TX_PACKET_TYPE_MGMT;
 	prMsduInfo->ucStaRecIndex = prStaRec->ucIndex;
@@ -266,7 +223,7 @@ wmmTxTspecFrame(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 	nicTxEnqueueMsdu(prAdapter, prMsduInfo);
 
 	/*DumpData(((PUINT8)prMsduInfo->prPacket) + u2PayLoadLen,
-	*	prMsduInfo->u2FrameLength - u2PayLoadLen, "TSPEC-IE");
+	 * prMsduInfo->u2FrameLength - u2PayLoadLen, "TSPEC-IE");
 	*/
 }
 
@@ -294,6 +251,7 @@ VOID wmmSetupTspecTimeOut(P_ADAPTER_T prAdapter, ULONG ulParam)
 		break;
 	}
 }
+
 #if 0
 VOID
 wmmSyncTXPwrLimitWithFw(
@@ -305,8 +263,8 @@ wmmSyncTXPwrLimitWithFw(
 	CMD_MAX_TXPWR_LIMIT_T rCmdMaxTxPwrLimit;
 	UINT_8 ucLevel = 100; /*default 100 percent */
 	/*  <5mw	5mw     10mw	20mw	30mw	40mw	50mw
-	*	<7dbm	7dbm	10dbm	13dbm	15dbm	16dbm	17dbm
-	*	5%		10%		20%		40%		60%		80%		100%
+	 * <7dbm	7dbm	10dbm	13dbm	15dbm	16dbm	17dbm
+	 * 5%		10%		20%		40%		60%		80%		100%
 	*/
 	if (cMaxPwr <= 2) {
 		ucLevel = 0;
@@ -335,7 +293,7 @@ wmmSyncTXPwrLimitWithFw(
 	rCmdMaxTxPwrLimit.ucMaxTxPwrLimitEnable = enable;
 	rCmdMaxTxPwrLimit.ucMaxTxPwr = (UINT_8)cMaxPwr * 2; /* in fw, he will devide this value */
 	/* CMD_ID_SET_MAX_TXPWR_LIMIT: if tx power of some modulation which from nvram
-	*	is less than this limit, he will use the value from nvram. otherwise, he will use this limit value
+	 * is less than this limit, he will use the value from nvram. otherwise, he will use this limit value
 	*/
 	wlanSendSetQueryCmd(prAdapter,
 		CMD_ID_SET_MAX_TXPWR_LIMIT,
@@ -441,15 +399,10 @@ wmmRunEventTSOperate(
 {
 	struct MSG_TS_OPERATE *prMsgTsOperate = (struct MSG_TS_OPERATE *)prMsgHdr;
 
-	if (prMsgTsOperate == NULL) {
-		DBGLOG(WMM, INFO, "prMsgTsOperate = NULL, do nothing.\n");
-		return;
-	}
-
 	wmmTspecSteps(prAdapter, prMsgTsOperate->ucTid,
 				  prMsgTsOperate->eOpCode, (VOID *)&prMsgTsOperate->rTspecParam);
-
-	cnmMemFree(prAdapter, prMsgHdr);
+	if (prMsgHdr)
+		cnmMemFree(prAdapter, prMsgHdr);
 }
 
 VOID
@@ -460,8 +413,8 @@ wmmTspecSteps(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 	struct WMM_INFO *prWmmInfo = &prAdapter->rWifiVar.rWmmInfo;
 	struct TSPEC_INFO *prCurTs = NULL;
 
-	if (prAdapter->rWifiVar.arBssInfo[NETWORK_TYPE_AIS_INDEX].eConnectionState !=
-		PARAM_MEDIA_STATE_CONNECTED ||
+	if (PARAM_MEDIA_STATE_CONNECTED !=
+		prAdapter->rWifiVar.arBssInfo[NETWORK_TYPE_AIS_INDEX].eConnectionState ||
 		prAisFsmInfo->eCurrentState == AIS_STATE_DISCONNECTING) {
 		DBGLOG(WMM, INFO, "ignore OP code %d when medium disconnected\n", eOpCode);
 		return;
@@ -482,7 +435,6 @@ wmmTspecSteps(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 
 		if (eOpCode != TX_ADDTS_REQ)
 			break;
-
 		if (!prQosTspec) {
 			DBGLOG(WMM, INFO, "Lack of Tspec Param\n");
 			break;
@@ -501,6 +453,7 @@ wmmTspecSteps(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 	{
 		struct WMM_ADDTS_RSP_STEP_PARAM *prParam =
 			(struct WMM_ADDTS_RSP_STEP_PARAM *)prStepParams;
+
 		if (eOpCode == TX_DELTS_REQ || eOpCode == RX_DELTS_REQ || eOpCode == DISC_DELTS_REQ) {
 			cnmTimerStopTimer(prAdapter, &prCurTs->rAddTsTimer);
 			prCurTs->eState = QOS_TS_INACTIVE;
@@ -516,8 +469,6 @@ wmmTspecSteps(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 			prCurTs->eState = QOS_TS_ACTIVE;
 			prCurTs->eDir = prParam->eDir;
 			prCurTs->fgUapsd = !!prParam->ucApsd;
-			prCurTs->u2MediumTime = prParam->u2MediumTime;
-			prCurTs->u4PhyRate = prParam->u4PhyRate;
 			wmmSyncAcParamWithFw(prAdapter, prCurTs->eAC, prParam->u2MediumTime,
 								 prParam->u4PhyRate);
 			wmmMayDoTsReplacement(prAdapter, ucTid);
@@ -576,8 +527,6 @@ wmmTspecSteps(P_ADAPTER_T prAdapter, UINT_8 ucTid, enum TSPEC_OP_CODE eOpCode,
 			}
 			prCurTs->eDir = prParam->eDir;
 			prCurTs->fgUapsd = !!prParam->ucApsd;
-			prCurTs->u2MediumTime = prParam->u2MediumTime;
-			prCurTs->u4PhyRate = prParam->u4PhyRate;
 			wmmSyncAcParamWithFw(prAdapter, prCurTs->eAC, prParam->u2MediumTime, prParam->u4PhyRate);
 			wmmMayDoTsReplacement(prAdapter, ucTid);
 			break;
@@ -602,6 +551,7 @@ wmmRunEventActionTxDone(P_ADAPTER_T prAdapter, P_MSDU_INFO_T prMsduInfo,
 
 static char const charmap[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
 					'8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
 void DumpData(PUINT8 prAddr, UINT8 uLen, char *tag)
 {
 	UINT16 k = 0;
@@ -640,6 +590,7 @@ void DumpData(PUINT8 prAddr, UINT8 uLen, char *tag)
 	DBGLOG(WMM, INFO, "%s\n", buf);
 	DBGLOG(WMM, INFO, "====== end dump data\n");
 }
+
 /* TSM related */
 
 static VOID wmmQueryTsmResult(P_ADAPTER_T prAdapter, ULONG ulParam)
@@ -749,21 +700,11 @@ wmmStartTsmMeasurement(P_ADAPTER_T prAdapter, ULONG ulParam)
 		rlmScheduleNextRm(prAdapter);
 		return;
 	}
-	/* if there's a active tspec, then TID means TS ID */
 	prCurTs = &prWMMInfo->arTsInfo[ucTid];
 	if (prCurTs->eState == QOS_TS_ACTIVE)
 		prTsmReq->ucACI = prCurTs->eAC;
-	else { /* otherwise TID means TC ID */
-		UINT_8 ucTsAcs = wmmHasActiveTspec(prWMMInfo);
-
+	else
 		prTsmReq->ucACI = aucUp2ACIMap[ucTid];
-		/* if current TID is not admitted, don't start measurement, only save this requirement */
-		if (prStaRec->afgAcmRequired[prTsmReq->ucACI] && !(ucTsAcs & BIT(prTsmReq->ucACI))) {
-			DBGLOG(WMM, INFO, "ACM is set for UP %d, but No tspec is setup\n", ucTid);
-			rlmScheduleNextRm(prAdapter);
-			return;
-		}
-	}
 
 	kalMemZero(&rTsmStatistics, sizeof(rTsmStatistics));
 	if (prTsmReq->u2Duration) {
@@ -893,14 +834,10 @@ wmmParseQosAction(
 			rStepParam.ucStatusCode = prAddTsRsp->ucStatusCode;
 			pucIE = (PUINT8)prAddTsRsp->aucInfoElem;
 		}
+
 		/*for each IE*/
 		u2IEsBufLen = prSwRfb->u2PacketLen - prSwRfb->u2HeaderLen -
 			(UINT_16)(OFFSET_OF(ACTION_ADDTS_RSP_FRAME, aucInfoElem) - WLAN_MAC_HEADER_LEN);
-
-		if (pucIE == NULL) {
-			DBGLOG(WMM, INFO, "pueIE = NULL when Category=%d\n",  prWlanActionFrame->ucCategory);
-			break;
-		}
 
 		IE_FOR_EACH(pucIE, u2IEsBufLen, u2Offset) {
 			switch (IE_ID(pucIE)) {
@@ -1064,9 +1001,10 @@ void wmmComposeTsmRpt(P_ADAPTER_T prAdapter, P_CMD_INFO_T prCmdInfo, PUINT_8 puc
 	}
 
 	/* Put the report IE into report frame */
-	if (ucIeSize + prRmRep->u2ReportFrameLen > RM_REPORT_FRAME_MAX_LENGTH)
+	if (ucIeSize + prRmRep->u2ReportFrameLen > RM_REPORT_FRAME_MAX_LENGTH) {
 		rlmTxRadioMeasurementReport(prAdapter);
-
+		prRmRep->u2ReportFrameLen = OFFSET_OF(ACTION_RM_REPORT_FRAME, aucInfoElem);
+	}
 	DBGLOG(WMM, INFO, "tid %d, aci %d\n", prCurrentTsmReq->prTsmReq->ucTID, prCurrentTsmReq->prTsmReq->ucACI);
 	prTsmRpt = (P_IE_MEASUREMENT_REPORT_T)(prRmRep->pucReportFrameBuff + prRmRep->u2ReportFrameLen);
 	prTsmRpt->ucId = ELEM_ID_MEASUREMENT_REPORT;
@@ -1129,6 +1067,7 @@ void wmmComposeTsmRpt(P_ADAPTER_T prAdapter, P_CMD_INFO_T prCmdInfo, PUINT_8 puc
 			prWMMInfo->rTriggeredTsmRptTime = rCurrent;
 		else if (CHECK_FOR_TIMEOUT(rCurrent, prWMMInfo->rTriggeredTsmRptTime, 10000)) {
 			rlmTxRadioMeasurementReport(prAdapter);
+			prRmRep->u2ReportFrameLen = OFFSET_OF(ACTION_RM_REPORT_FRAME, aucInfoElem);
 			prWMMInfo->rTriggeredTsmRptTime = 0;
 		}
 	}
@@ -1180,7 +1119,6 @@ UINT_32 wmmDumpActiveTspecs(P_ADAPTER_T prAdapter, PUINT_8 pucBuffer, UINT_16 u2
 {
 	UINT_8 ucTid = 0;
 	INT_32 i4BytesWritten = 0;
-
 	struct TSPEC_INFO *prTspec = &prAdapter->rWifiVar.rWmmInfo.arTsInfo[0];
 
 	for (; ucTid < WMM_TSPEC_ID_NUM; ucTid++, prTspec++) {
@@ -1188,16 +1126,14 @@ UINT_32 wmmDumpActiveTspecs(P_ADAPTER_T prAdapter, PUINT_8 pucBuffer, UINT_16 u2
 			continue;
 		if (u2BufferLen > 0 && pucBuffer) {
 			i4BytesWritten += kalSnprintf(pucBuffer+i4BytesWritten, u2BufferLen,
-						"Tid %d, AC %d, Dir %d, Uapsd %d, MediumTime %d, PhyRate %u\n",
-						ucTid, prTspec->eAC, prTspec->eDir, prTspec->fgUapsd,
-						prTspec->u2MediumTime, prTspec->u4PhyRate);
+						"Tid %d, AC %d, Dir %d, Uapsd %d\n",
+						ucTid, prTspec->eAC, prTspec->eDir, prTspec->fgUapsd);
 			if (i4BytesWritten <= 0)
 				break;
 			u2BufferLen -= (UINT_16)i4BytesWritten;
 		} else
-			DBGLOG(WMM, INFO, "Tid %d, AC %d, Dir %d, Uapsd %d, MediumTime %d, PhyRate %u\n",
-				   ucTid, prTspec->eAC, prTspec->eDir, prTspec->fgUapsd,
-				   prTspec->u2MediumTime, prTspec->u4PhyRate);
+			DBGLOG(WMM, INFO, "Tid %d, AC %d, Dir %d, Uapsd %d\n",
+				   ucTid, prTspec->eAC, prTspec->eDir, prTspec->fgUapsd);
 	}
 	return (UINT_32)i4BytesWritten;
 }

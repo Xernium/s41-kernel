@@ -21,4 +21,3 @@ obj-$(CONFIG_ARM64) += mrdump_arm64.o
 endif
 
 obj-$(CONFIG_MTK_AEE_IPANIC) += mrdump_mini.o mrdump_control.o
-KASAN_SANITIZE := n

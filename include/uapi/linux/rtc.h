@@ -27,7 +27,6 @@ struct rtc_time {
 	int tm_wday;
 	int tm_yday;
 	int tm_isdst;
-	int tm_cnt;
 };
 
 /*

@@ -60,10 +60,6 @@
 #include <linux/cpuset.h>
 #include <linux/atomic.h>
 
-#if defined(CONFIG_CPUSETS) && !defined(CONFIG_MTK_ACAO)
-#include "perfmgr.h"
-#endif
-
 /*
  * pidlists linger the following amount before being destroyed.  The goal
  * is avoiding frequent destruction in the middle of consecutive read calls
@@ -230,26 +226,6 @@ static int cgroup_addrm_files(struct cgroup_subsys_state *css,
 			      struct cgroup *cgrp, struct cftype cfts[],
 			      bool is_add);
 
-#if defined(CONFIG_CPUSETS) && !defined(CONFIG_MTK_ACAO)
-struct set_excl_struct {
-	struct list_head list;
-
-	pid_t pid;
-	char comm[TASK_COMM_LEN];
-};
-
-struct set_excl_struct set_excl_st_head = {
-	.list = LIST_HEAD_INIT(set_excl_st_head.list),
-};
-static int excl_task_count;
-
-static DEFINE_SPINLOCK(set_excl_st_lock);
-
-#define SS_TOP_GROUP_ID 6
-#define CSS_CPUSET_ID 0
-#define CSS_CPUSET_MASK 1
-#endif /* CONFIG_CPUSETS && !CONFIG_MTK_ACAO */
-
 /**
  * cgroup_ssid_enabled - cgroup subsys enabled test by subsys ID
  * @ssid: subsys ID of interest
@@ -260,9 +236,6 @@ static DEFINE_SPINLOCK(set_excl_st_lock);
  */
 static bool cgroup_ssid_enabled(int ssid)
 {
-	if (CGROUP_SUBSYS_COUNT == 0)
-		return false;
-
 	return static_key_enabled(cgroup_subsys_enabled_key[ssid]);
 }
 
@@ -2698,110 +2671,44 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 	return ret;
 }
 
-#if defined(CONFIG_CPUSETS) && !defined(CONFIG_MTK_ACAO)
-void store_set_exclusive_task(struct task_struct *p)
+int subsys_cgroup_allow_attach(struct cgroup_taskset *tset)
 {
-	struct set_excl_struct *set_excl_st;
-	unsigned long irq_flags;
+	const struct cred *cred = current_cred(), *tcred;
+	struct task_struct *task;
+	struct cgroup_subsys_state *css;
 
-	set_excl_st = kmalloc(sizeof(struct set_excl_struct), GFP_ATOMIC);
-	if (!set_excl_st)
-		return;
-	memset(set_excl_st, 0, sizeof(struct set_excl_struct));
-	INIT_LIST_HEAD(&(set_excl_st->list));
+	if (capable(CAP_SYS_NICE))
+		return 0;
 
-	spin_lock_irqsave(&set_excl_st_lock, irq_flags);
+	cgroup_taskset_for_each(task, css, tset) {
+		tcred = __task_cred(task);
 
-	excl_task_count++;
-	set_excl_st->pid = p->pid;
-	strncpy(set_excl_st->comm, p->comm, sizeof(set_excl_st->comm));
-	set_excl_st->comm[sizeof(set_excl_st->comm) - 1] = 0;
-	printk_deferred("sched: store exclusive task:%s, pid=%d, count=%d\n",
-			set_excl_st->comm, set_excl_st->pid, excl_task_count);
-
-	list_add(&(set_excl_st->list), &(set_excl_st_head.list));
-
-	spin_unlock_irqrestore(&set_excl_st_lock, irq_flags);
-}
-
-void save_set_exclusive_task(int pid)
-{
-	struct set_excl_struct *tmp;
-	int find = 0, top_cgrp_idx = 0;
-	struct list_head *list_head;
-	unsigned long irq_flags;
-	struct task_struct *p;
-
-	spin_lock_irqsave(&set_excl_st_lock, irq_flags);
-
-	list_head = &(set_excl_st_head.list);
-
-	rcu_read_lock();
-	p = find_task_by_vpid(pid);
-	if (p) {
-		printk_deferred("sched: exclusive task pid=%d, cgroup->id=%d\n",
-				pid, p->cgroups->subsys[CSS_CPUSET_ID]->cgroup->id);
-
-		top_cgrp_idx = p->cgroups->subsys[CSS_CPUSET_ID]->cgroup->id;
-
-		list_for_each_entry(tmp, list_head, list) {
-			if (!find && (tmp->pid == p->pid)) {
-				strncpy(tmp->comm, p->comm, sizeof(p->comm));
-				printk_deferred("sched: repeated exclusive task:%s, pid=%d, count=%d\n",
-						tmp->comm, tmp->pid, excl_task_count);
-				find = 1;
-			}
-		}
-	} else
-		printk_deferred("sched: save: exclusive task no exist, pid=%d\n", pid);
-
-	rcu_read_unlock();
-	spin_unlock_irqrestore(&set_excl_st_lock, irq_flags);
-
-	if (!find && p && top_cgrp_idx == SS_TOP_GROUP_ID)
-		store_set_exclusive_task(p);
-}
-
-void remove_set_exclusive_task(int pid, bool task_exit)
-{
-	struct set_excl_struct *tmp, *tmp2;
-	unsigned long irq_flags;
-	struct task_struct *p;
-	int unplug = 0;
-
-	spin_lock_irqsave(&set_excl_st_lock, irq_flags);
-
-	rcu_read_lock();
-	p = find_task_by_vpid(pid);
-	if (p) {
-		list_for_each_entry_safe(tmp, tmp2, &set_excl_st_head.list, list) {
-			if (tmp->pid == p->pid) {
-				excl_task_count--;
-				if (task_exit == 0)
-					printk_deferred("sched: write exclusive task to other cgroup\n");
-				else
-					printk_deferred("sched: exclusive task exit\n");
-
-				printk_deferred("sched: remove exclusive task:%s, pid=%d, count=%d\n",
-						tmp->comm, tmp->pid, excl_task_count);
-				list_del(&(tmp->list));
-				kfree(tmp);
-				if (excl_task_count == 0)
-					unplug = 1;
-			}
-		}
-	} else
-		printk_deferred("sched: remove: exclusive task no exist, pid=%d\n", pid);
-	rcu_read_unlock();
-
-	spin_unlock_irqrestore(&set_excl_st_lock, irq_flags);
-
-	if (unplug == 1) {
-		perfmgr_forcelimit_cpuset_cancel();
-		printk_deferred("sched: exclusive core unplug\n");
+		if (current != task && !uid_eq(cred->euid, tcred->uid) &&
+		    !uid_eq(cred->euid, tcred->suid))
+			return -EACCES;
 	}
+
+	return 0;
 }
-#endif /* CONFIG_CPUSETS && MTK_VR_HIGH_PERFORMANCE_SUPPORT && !MTK_ACAO */
+
+static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
+{
+	struct cgroup_subsys_state *css;
+	int i;
+	int ret;
+
+	for_each_css(css, i, cgrp) {
+		if (css->ss->allow_attach) {
+			ret = css->ss->allow_attach(tset);
+			if (ret)
+				return ret;
+		} else {
+			return -EACCES;
+		}
+	}
+
+	return 0;
+}
 
 static int cgroup_procs_write_permission(struct task_struct *task,
 					 struct cgroup *dst_cgrp,
@@ -2817,9 +2724,24 @@ static int cgroup_procs_write_permission(struct task_struct *task,
 	 */
 	if (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&
 	    !uid_eq(cred->euid, tcred->uid) &&
-	    !uid_eq(cred->euid, tcred->suid) &&
-	    !ns_capable(tcred->user_ns, CAP_SYS_NICE))
-		ret = -EACCES;
+	    !uid_eq(cred->euid, tcred->suid)) {
+		/*
+		 * if the default permission check fails, give each
+		 * cgroup a chance to extend the permission check
+		 */
+		struct cgroup_taskset tset = {
+			.src_csets = LIST_HEAD_INIT(tset.src_csets),
+			.dst_csets = LIST_HEAD_INIT(tset.dst_csets),
+			.csets = &tset.src_csets,
+		};
+		struct css_set *cset;
+		cset = task_css_set(task);
+		list_add(&cset->mg_node, &tset.src_csets);
+		ret = cgroup_allow_attach(dst_cgrp, &tset);
+		list_del(&tset.src_csets);
+		if (ret)
+			ret = -EACCES;
+	}
 
 	if (!ret && cgroup_on_dfl(dst_cgrp)) {
 		struct super_block *sb = of->file->f_path.dentry->d_sb;
@@ -2882,12 +2804,11 @@ static ssize_t __cgroup_procs_write(struct kernfs_open_file *of, char *buf,
 		tsk = tsk->group_leader;
 
 	/*
-	 * kthreads may acquire PF_NO_SETAFFINITY during initialization.
-	 * If userland migrates such a kthread to a non-root cgroup, it can
-	 * become trapped in a cpuset, or RT kthread may be born in a
-	 * cgroup with no rt_runtime allocated.  Just say no.
+	 * Workqueue threads may acquire PF_NO_SETAFFINITY and become
+	 * trapped in a cpuset, or RT worker may be born in a cgroup
+	 * with no rt_runtime allocated.  Just say no.
 	 */
-	if (tsk->no_cgroup_migration || (tsk->flags & PF_NO_SETAFFINITY)) {
+	if (tsk == kthreadd_task || (tsk->flags & PF_NO_SETAFFINITY)) {
 		ret = -EINVAL;
 		goto out_unlock_rcu;
 	}
@@ -2896,15 +2817,9 @@ static ssize_t __cgroup_procs_write(struct kernfs_open_file *of, char *buf,
 	rcu_read_unlock();
 
 	ret = cgroup_procs_write_permission(tsk, cgrp, of);
-	if (!ret) {
+	if (!ret)
 		ret = cgroup_attach_task(cgrp, tsk, threadgroup);
-#if defined(CONFIG_CPUSETS) && !defined(CONFIG_MTK_ACAO)
-		if (cgrp->id != SS_TOP_GROUP_ID && cgrp->child_subsys_mask == CSS_CPUSET_MASK
-		&& excl_task_count > 0) {
-			remove_set_exclusive_task(tsk->pid, 0);
-		}
-#endif
-	}
+
 	put_task_struct(tsk);
 	goto out_unlock_threadgroup;
 
@@ -4938,7 +4853,6 @@ static void init_and_link_css(struct cgroup_subsys_state *css,
 	memset(css, 0, sizeof(*css));
 	css->cgroup = cgrp;
 	css->ss = ss;
-	css->id = -1;
 	INIT_LIST_HEAD(&css->sibling);
 	INIT_LIST_HEAD(&css->children);
 	css->serial_nr = css_serial_nr_next++;
@@ -5463,26 +5377,18 @@ static unsigned long cgroup_disable_mask __initdata;
 int __init cgroup_init(void)
 {
 	struct cgroup_subsys *ss;
+	unsigned long key;
 	int ssid;
 
 	BUG_ON(percpu_init_rwsem(&cgroup_threadgroup_rwsem));
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_dfl_base_files));
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_legacy_base_files));
 
-	/*
-	 * The latency of the synchronize_sched() is too high for cgroups,
-	 * avoid it at the cost of forcing all readers into the slow path.
-	 */
-	rcu_sync_enter_start(&cgroup_threadgroup_rwsem.rss);
-
 	mutex_lock(&cgroup_mutex);
 
-	/*
-	 * Add init_css_set to the hash table so that dfl_root can link to
-	 * it during init.
-	 */
-	hash_add(css_set_table, &init_css_set.hlist,
-		 css_set_hash(init_css_set.subsys));
+	/* Add init_css_set to the hash table */
+	key = css_set_hash(init_css_set.subsys);
+	hash_add(css_set_table, &init_css_set.hlist, key);
 
 	BUG_ON(cgroup_setup_root(&cgrp_dfl_root, 0));
 
@@ -5530,11 +5436,6 @@ int __init cgroup_init(void)
 		if (ss->bind)
 			ss->bind(init_css_set.subsys[ssid]);
 	}
-
-	/* init_css_set.subsys[] has been updated, re-hash */
-	hash_del(&init_css_set.hlist);
-	hash_add(css_set_table, &init_css_set.hlist,
-		 css_set_hash(init_css_set.subsys));
 
 	WARN_ON(sysfs_create_mount_point(fs_kobj, "cgroup"));
 	WARN_ON(register_filesystem(&cgroup_fs_type));
@@ -5859,11 +5760,6 @@ void cgroup_exit(struct task_struct *tsk)
 	/* see cgroup_post_fork() for details */
 	for_each_subsys_which(ss, i, &have_exit_callback)
 		ss->exit(tsk);
-
-#if defined(CONFIG_CPUSETS) && !defined(CONFIG_MTK_ACAO)
-	if (excl_task_count > 0)
-		remove_set_exclusive_task(tsk->pid, 1);
-#endif
 }
 
 void cgroup_free(struct task_struct *task)

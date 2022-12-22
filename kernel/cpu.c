@@ -59,7 +59,7 @@ EXPORT_SYMBOL(cpu_notifier_register_done);
 	defined(CONFIG_MTK_CPU_HOTPLUG_DEBUG_2)
 RAW_NOTIFIER_HEAD(cpu_chain);
 #else
-RAW_NOTIFIER_HEAD(cpu_chain);
+static RAW_NOTIFIER_HEAD(cpu_chain);
 #endif
 
 /* If set, cpu_up and cpu_down will return -EBUSY and do nothing.
@@ -194,17 +194,10 @@ void cpu_hotplug_disable(void)
 }
 EXPORT_SYMBOL_GPL(cpu_hotplug_disable);
 
-static void __cpu_hotplug_enable(void)
-{
-	if (WARN_ONCE(!cpu_hotplug_disabled, "Unbalanced cpu hotplug enable\n"))
-		return;
-	cpu_hotplug_disabled--;
-}
-
 void cpu_hotplug_enable(void)
 {
 	cpu_maps_update_begin();
-	__cpu_hotplug_enable();
+	WARN_ON(--cpu_hotplug_disabled < 0);
 	cpu_maps_update_done();
 }
 EXPORT_SYMBOL_GPL(cpu_hotplug_enable);
@@ -229,12 +222,8 @@ int register_cpu_notifier(struct notifier_block *nb)
 	int index = 0;
 #ifdef CONFIG_KALLSYMS
 	char namebuf[128] = {0};
-	const char *symname = NULL;
-#endif
-#endif /* CONFIG_MTK_CPU_HOTPLUG_DEBUG_0 */
-	cpu_maps_update_begin();
-#ifdef CONFIG_MTK_CPU_HOTPLUG_DEBUG_0
-#ifdef CONFIG_KALLSYMS
+	const char *symname;
+
 	symname = kallsyms_lookup((unsigned long)nb->notifier_call,
 			NULL, NULL, NULL, namebuf);
 	if (symname)
@@ -248,7 +237,7 @@ int register_cpu_notifier(struct notifier_block *nb)
 		index++, (unsigned long)nb->notifier_call);
 #endif
 #endif /* CONFIG_MTK_CPU_HOTPLUG_DEBUG_0 */
-
+	cpu_maps_update_begin();
 	ret = raw_notifier_chain_register(&cpu_chain, nb);
 	cpu_maps_update_done();
 	return ret;
@@ -275,6 +264,12 @@ static int cpu_notify(unsigned long val, void *v)
 	return __cpu_notify(val, v, -1, NULL);
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+
+static void cpu_notify_nofail(unsigned long val, void *v)
+{
+	BUG_ON(cpu_notify(val, v));
+}
 EXPORT_SYMBOL(register_cpu_notifier);
 EXPORT_SYMBOL(__register_cpu_notifier);
 
@@ -291,12 +286,6 @@ void __unregister_cpu_notifier(struct notifier_block *nb)
 	raw_notifier_chain_unregister(&cpu_chain, nb);
 }
 EXPORT_SYMBOL(__unregister_cpu_notifier);
-
-#ifdef CONFIG_HOTPLUG_CPU
-static void cpu_notify_nofail(unsigned long val, void *v)
-{
-	BUG_ON(cpu_notify(val, v));
-}
 
 /**
  * clear_tasks_mm_cpumask - Safely clear tasks' mm_cpumask for a CPU
@@ -540,6 +529,7 @@ int cpu_down(unsigned int cpu)
 	aee_rr_rec_cpu_callee(cpu);
 #endif
 	cpu_maps_update_begin();
+
 	if (cpu_hotplug_disabled) {
 		err = -EBUSY;
 		goto out;
@@ -801,7 +791,7 @@ void enable_nonboot_cpus(void)
 
 	/* Allow everyone to use the CPU hotplug again */
 	cpu_maps_update_begin();
-	__cpu_hotplug_enable();
+	WARN_ON(--cpu_hotplug_disabled < 0);
 	if (cpumask_empty(frozen_cpus))
 		goto out;
 
@@ -814,7 +804,7 @@ void enable_nonboot_cpus(void)
 		error = _cpu_up(cpu, 1);
 		trace_suspend_resume(TPS("CPU_ON"), cpu, false);
 		if (!error) {
-			/*pr_info("CPU%d is up\n", cpu);*/
+			pr_info("CPU%d is up\n", cpu);
 			cpu_device = get_cpu_device(cpu);
 			if (!cpu_device)
 				pr_err("%s: failed to get cpu%d device\n",

@@ -40,13 +40,13 @@
 #endif
 
 
-#if defined(CONFIG_MTK_FMRADIO)
+#if 1				/* defined(CONFIG_MTK_COMBO_FM) */
 #define CFG_FUNC_FM_SUPPORT 1
 #else
 #define CFG_FUNC_FM_SUPPORT 0
 #endif
 
-#if defined(CONFIG_MTK_COMBO_GPS)
+#if 1				/* defined(CONFIG_MTK_COMBO_GPS) */
 #define CFG_FUNC_GPS_SUPPORT 1
 #else
 #define CFG_FUNC_GPS_SUPPORT 0

@@ -87,10 +87,9 @@ SECTIONS
 		EXIT_CALL
 		*(.discard)
 		*(.discard.*)
-		*(.interp .dynamic)
 	}
 
-	. = KIMAGE_VADDR + TEXT_OFFSET;
+	. = PAGE_OFFSET + TEXT_OFFSET;
 
 	.head.text : {
 		_text = .;
@@ -100,7 +99,7 @@ SECTIONS
 	.mrdump ALIGN (0x400): {
 	}
 #endif
-	ALIGN_DEBUG_RO_MIN(PAGE_SIZE)
+	ALIGN_DEBUG_RO
 	.text : {			/* Real text segment		*/
 		_stext = .;		/* Text and read-only data	*/
 			__exception_text_start = .;
@@ -118,12 +117,12 @@ SECTIONS
 		*(.got)			/* Global offset table		*/
 	}
 
-	ALIGN_DEBUG_RO_MIN(PAGE_SIZE)
-	_etext = .;			/* End of text section */
-
-	RO_DATA(PAGE_SIZE)		/* everything from this point to     */
-	EXCEPTION_TABLE(8)		/* __init_begin will be marked RO NX */
+	ALIGN_DEBUG_RO
+	RO_DATA(PAGE_SIZE)
+	EXCEPTION_TABLE(8)
 	NOTES
+	ALIGN_DEBUG_RO
+	_etext = .;			/* End of text and rodata section */
 
 	ALIGN_DEBUG_RO_MIN(PAGE_SIZE)
 	__init_begin = .;
@@ -133,6 +132,7 @@ SECTIONS
 		ARM_EXIT_KEEP(EXIT_TEXT)
 	}
 
+	ALIGN_DEBUG_RO_MIN(16)
 	.init.data : {
 		INIT_DATA
 		INIT_SETUP(16)
@@ -147,6 +147,9 @@ SECTIONS
 
 	PERCPU_SECTION(L1_CACHE_BYTES)
 
+	. = ALIGN(PAGE_SIZE);
+	__init_end = .;
+
 	. = ALIGN(4);
 	.altinstructions : {
 		__alt_instructions = .;
@@ -156,25 +159,8 @@ SECTIONS
 	.altinstr_replacement : {
 		*(.altinstr_replacement)
 	}
-	.rela : ALIGN(8) {
-		__reloc_start = .;
-		*(.rela .rela*)
-		__reloc_end = .;
-	}
-	.dynsym : ALIGN(8) {
-		__dynsym_start = .;
-		*(.dynsym)
-	}
-	.dynstr : {
-		*(.dynstr)
-	}
-	.hash : {
-		*(.hash)
-	}
 
 	. = ALIGN(PAGE_SIZE);
-	__init_end = .;
-
 	_data = .;
 	_sdata = .;
 	RW_DATA_SECTION(L1_CACHE_BYTES, PAGE_SIZE, THREAD_SIZE)
@@ -188,11 +174,6 @@ SECTIONS
 	. += IDMAP_DIR_SIZE;
 	swapper_pg_dir = .;
 	. += SWAPPER_DIR_SIZE;
-
-#ifdef CONFIG_ARM64_SW_TTBR0_PAN
-	reserved_ttbr0 = .;
-	. += RESERVED_TTBR0_SIZE;
-#endif
 
 	_end = .;
 
@@ -213,4 +194,4 @@ ASSERT(__idmap_text_end - (__idmap_text_start & ~(SZ_4K - 1)) <= SZ_4K,
 /*
  * If padding is applied before .head.text, virt<->phys conversions will fail.
  */
-ASSERT(_text == (KIMAGE_VADDR + TEXT_OFFSET), "HEAD is misaligned")
+ASSERT(_text == (PAGE_OFFSET + TEXT_OFFSET), "HEAD is misaligned")

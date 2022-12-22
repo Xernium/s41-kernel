@@ -172,7 +172,6 @@ static bool clk_core_is_enabled(struct clk_core *core)
 	return core->ops->is_enabled(core->hw);
 }
 
-#if (!defined(CONFIG_MACH_MT6799) && !defined(CONFIG_MACH_MT6763) && !defined(CONFIG_MACH_MT6758))
 static void clk_unprepare_unused_subtree(struct clk_core *core)
 {
 	struct clk_core *child;
@@ -233,7 +232,6 @@ static void clk_disable_unused_subtree(struct clk_core *core)
 unlock_out:
 	clk_enable_unlock(flags);
 }
-#endif
 
 static bool clk_ignore_unused;
 static int __init clk_ignore_unused_setup(char *__unused)
@@ -245,15 +243,12 @@ __setup("clk_ignore_unused", clk_ignore_unused_setup);
 
 static int clk_disable_unused(void)
 {
-	#if (!defined(CONFIG_MACH_MT6799) && !defined(CONFIG_MACH_MT6763) && !defined(CONFIG_MACH_MT6758))
 	struct clk_core *core;
-#endif
 
 	if (clk_ignore_unused) {
 		pr_warn("clk: Not disabling unused clocks\n");
 		return 0;
 	}
-	#if (!defined(CONFIG_MACH_MT6799) && !defined(CONFIG_MACH_MT6763) && !defined(CONFIG_MACH_MT6758))
 
 	clk_prepare_lock();
 
@@ -271,7 +266,6 @@ static int clk_disable_unused(void)
 
 	clk_prepare_unlock();
 
-	#endif
 	return 0;
 }
 late_initcall_sync(clk_disable_unused);
@@ -437,15 +431,6 @@ bool clk_hw_is_enabled(const struct clk_hw *hw)
 {
 	return clk_core_is_enabled(hw->core);
 }
-
-bool __clk_is_prepared(struct clk *clk)
-{
-	if (!clk)
-		return false;
-
-	return clk_core_is_prepared(clk->core);
-}
-EXPORT_SYMBOL_GPL(__clk_is_prepared);
 
 bool __clk_is_enabled(struct clk *clk)
 {

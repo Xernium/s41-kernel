@@ -150,7 +150,7 @@ static void __init create_procfs(void)
 	}
 }
 
-static int __init chip_common_init(void)
+int __init chip_common_init(void)
 {
 	create_procfs();
 	return 0;

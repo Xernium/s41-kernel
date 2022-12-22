@@ -47,8 +47,6 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/sdio_func.h>
 #include <linux/mmc/sdio_ids.h>
-#include <linux/mmc/sdio.h>
-#include <sdio_ops.h>
 
 #include <linux/mm.h>
 #include <linux/firmware.h>
@@ -78,8 +76,6 @@
 #define HIF_SDIO_LOG_WARN    1
 #define HIF_SDIO_LOG_ERR     0
 
-#define CCCR_F8		(0X00F8)
-#define SWPCDBGR	(0x0154)
 
 /*******************************************************************************
 *                             D A T A   T Y P E S
@@ -193,7 +189,15 @@ typedef enum {
 ********************************************************************************
 */
 
-
+#if WMT_PLAT_ALPS
+#ifdef CONFIG_SDIOAUTOK_SUPPORT
+#define MTK_HIF_SDIO_AUTOK_ENABLED 1
+#else
+#define MTK_HIF_SDIO_AUTOK_ENABLED 0
+#endif
+#else
+#define MTK_HIF_SDIO_AUTOK_ENABLED 0
+#endif
 
 /*!
  * \brief A macro used to generate hif_sdio client's context
@@ -247,14 +251,13 @@ typedef enum {
 
 extern UINT32 gHifSdioDbgLvl;
 
-
 #define HIF_SDIO_LOUD_FUNC(fmt, arg...)	\
 do { if (gHifSdioDbgLvl >= HIF_SDIO_LOG_LOUD)	\
-	osal_warn_print(DFT_TAG"[L]%s:"  fmt, __func__, ##arg);	\
+	osal_dbg_print(DFT_TAG"[L]%s:"  fmt, __func__, ##arg);	\
 } while (0)
 #define HIF_SDIO_DBG_FUNC(fmt, arg...)	\
 do { if (gHifSdioDbgLvl >= HIF_SDIO_LOG_DBG)	\
-	osal_warn_print(DFT_TAG"[D]%s:"  fmt, __func__, ##arg);	\
+	osal_dbg_print(DFT_TAG"[D]%s:"  fmt, __func__, ##arg);	\
 } while (0)
 #define HIF_SDIO_INFO_FUNC(fmt, arg...)	\
 do { if (gHifSdioDbgLvl >= HIF_SDIO_LOG_INFO)	\
@@ -277,7 +280,7 @@ do { if (gHifSdioDbgLvl >= HIF_SDIO_LOG_ERR)	\
 #define HIF_SDIO_ASSERT(expr) \
 { \
 		if (!(expr)) { \
-			osal_warn_print("assertion failed! %s[%d]: %s\n",\
+			osal_dbg_print("assertion failed! %s[%d]: %s\n",\
 					__func__, __LINE__, #expr); \
 			osal_bug_on(!(expr));\
 		} \
@@ -285,10 +288,6 @@ do { if (gHifSdioDbgLvl >= HIF_SDIO_LOG_ERR)	\
 #else
 #define HIF_SDIO_ASSERT(expr)    do {} while (0)
 #endif
-
-/* define function 0 CR */
-#define CCCR_06		(0x06)
-#define CCCR_F0		(0xF0)
 
 /*******************************************************************************
 *                   F U N C T I O N   D E C L A R A T I O N S
@@ -323,10 +322,6 @@ extern INT32 mtk_wcn_hif_sdio_read_buf(MTK_WCN_HIF_SDIO_CLTCTX ctx,
 extern INT32 mtk_wcn_hif_sdio_write_buf(MTK_WCN_HIF_SDIO_CLTCTX ctx,
 					UINT32 offset, PUINT32 pbuf, UINT32 len);
 
-extern INT32 mtk_wcn_hif_sdio_abort(MTK_WCN_HIF_SDIO_CLTCTX ctx);
-
-INT32 hif_sdio_wake_up_ctrl(MTK_WCN_HIF_SDIO_CLTCTX ctx);
-
 extern VOID mtk_wcn_hif_sdio_set_drvdata(MTK_WCN_HIF_SDIO_CLTCTX ctx, PVOID private_data_p);
 
 extern PVOID mtk_wcn_hif_sdio_get_drvdata(MTK_WCN_HIF_SDIO_CLTCTX ctx);
@@ -341,12 +336,12 @@ extern INT32 mtk_wcn_hif_sdio_update_cb_reg(INT32(*ts_update)(VOID));
 
 extern VOID mtk_wcn_hif_sdio_enable_irq(MTK_WCN_HIF_SDIO_CLTCTX ctx, MTK_WCN_BOOL enable);
 
+extern INT32 mtk_wcn_hif_sdio_do_autok(MTK_WCN_HIF_SDIO_CLTCTX ctx);
+
 extern INT32 mtk_wcn_hif_sdio_f0_writeb(MTK_WCN_HIF_SDIO_CLTCTX ctx, UINT32 offset, UINT8 vb);
 
 extern INT32 mtk_wcn_hif_sdio_f0_readb(MTK_WCN_HIF_SDIO_CLTCTX ctx, UINT32 offset, PUINT8 pvb);
-#ifdef CONFIG_MTK_COMBO_CHIP_DEEP_SLEEP_SUPPORT
-INT32 mtk_wcn_hif_sdio_deep_sleep_flag_set(MTK_WCN_BOOL flag);
-#endif
+
 
 #define DELETE_HIF_SDIO_CHRDEV 1
 #if !(DELETE_HIF_SDIO_CHRDEV)
@@ -354,6 +349,9 @@ INT32 mtk_wcn_hif_sdio_tell_chipid(INT32 chipId);
 INT32 mtk_wcn_hif_sdio_query_chipid(INT32 waitFlag);
 #endif
 
+extern INT32 mtk_wcn_hif_sdio_en_deep_sleep(MTK_WCN_HIF_SDIO_CLTCTX ctx);
+
+extern INT32 mtk_wcn_hif_sdio_dis_deep_sleep(MTK_WCN_HIF_SDIO_CLTCTX ctx);
 
 /*******************************************************************************
 *                              F U N C T I O N S
@@ -364,6 +362,10 @@ INT32 mtk_wcn_hif_sdio_query_chipid(INT32 waitFlag);
 *                   E X T E R N A L    F U N C T I O N   D E C L A R A T I O N S
 ********************************************************************************
 */
+
+#if MTK_HIF_SDIO_AUTOK_ENABLED
+extern INT32 wait_sdio_autok_ready(PVOID);
+#endif
 
 /*******************************************************************************
 *                              F U N C T I O N S

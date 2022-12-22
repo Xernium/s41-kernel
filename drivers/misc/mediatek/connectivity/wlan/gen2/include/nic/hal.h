@@ -101,7 +101,6 @@ do { \
 			HAL_SET_FLAG(_prAdapter, ADAPTER_FLAG_HW_ERR); \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_PORT_RD access fail! 0x%x\n", _u4Port); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
 			} \
 		else { \
 			/*fgResult = TRUE;*/ } \
@@ -122,7 +121,6 @@ do { \
 			HAL_SET_FLAG(_prAdapter, ADAPTER_FLAG_HW_ERR); \
 			fgIsBusAccessFailed = TRUE; \
 			DBGLOG(HAL, ERROR, "HAL_PORT_WR access fail! 0x%x\n", _u4Port); \
-			GL_RESET_TRIGGER(_prAdapter, RST_FLAG_CHIP_RESET); \
 		} \
 		else { \
 		/*fgResult = TRUE;*/ } \

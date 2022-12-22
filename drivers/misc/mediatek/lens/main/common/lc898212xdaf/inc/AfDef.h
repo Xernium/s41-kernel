@@ -1,3 +1,16 @@
+/*
+* Copyright (C) Onsemi Co.,Ltd. All rights reserved.
+
+* This software is licensed under the terms of the GNU General Public
+* License version 2, as published by the Free Software Foundation, and
+* may be copied, distributed, and modified under those terms.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
 /*******************************************************************************
  *  AfDef.h - Header file for LC898211
  *
@@ -6,7 +19,7 @@
  *  REVISION:
  *      2012/05/16 - First Edition, YS.Kim
  ******************************************************************************/
-/* Delay RAM    00h Å` 3Çeh */
+// Delay RAM    00h Å` 3Çeh
 #define	ADHXI_211H		0x00
 #define	ADHXI_211L		0x01
 #define	PIDZO_211H		0x02
@@ -72,7 +85,7 @@
 #define	EZ_211H			0x3E
 #define	EZ_211L			0x3F
 
-/* Coefficient RAM 40h Å` 7Fh */
+//Coefficient RAM 40h Å` 7Fh
 #define	ag_211H			0x40
 #define	ag_211L			0x41
 #define	da_211H			0x42
@@ -137,7 +150,7 @@
 #define	CHTGX_211L		0x7D
 #define	CHTGN_211H		0x7E
 #define	CHTGN_211L		0x7F
-/* Register 80h Å`  9F */
+//Register 80h Å`  9F
 #define	CLKSEL_211		0x80
 #define	ADSET_211		0x81
 #define	PWMSEL_211		0x82

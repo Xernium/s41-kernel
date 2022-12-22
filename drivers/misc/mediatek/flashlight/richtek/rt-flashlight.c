@@ -1,14 +1,17 @@
 /*
- *  Copyright (C) 2017 MediaTek Inc.
+ * Flashlight Class Device Driver
  *
- * This program is free software: you can redistribute it and/or modify
+ * Copyright (C) 2013 Richtek Technology Corp.
+ * Author: Patrick Chang <patrick_chang@richtek.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/module.h>
@@ -36,7 +39,7 @@ static ssize_t flashlight_show_name(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n",
+	return sprintf(buf, "%s\n",
 		       flashlight_dev->props.alias_name ?
 		       flashlight_dev->props.alias_name : "anonymous");
 }
@@ -46,7 +49,7 @@ static ssize_t flashlight_show_type(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n",
+	return sprintf(buf, "%s\n",
 		       flashlight_type_string[flashlight_dev->props.type]);
 }
 
@@ -55,8 +58,24 @@ static ssize_t flashlight_show_mode(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n",
+	return sprintf(buf, "%s\n",
 		       flashlight_mode_string[flashlight_dev->props.mode]);
+}
+
+static ssize_t flashlight_store_mode(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc;
+	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
+	long mode;
+
+	rc = kstrtol(buf, 0, &mode);
+	if (rc)
+		return rc;
+	rc =  flashlight_dev->ops->set_mode(flashlight_dev, mode);
+	if (rc == 0)
+		rc = count;
+	return rc;
 }
 
 static ssize_t flashlight_show_torch_max_brightness(struct device *dev,
@@ -64,7 +83,7 @@ static ssize_t flashlight_show_torch_max_brightness(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.torch_max_brightness);
 }
 
@@ -73,7 +92,7 @@ static ssize_t flashlight_show_strobe_max_brightness(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.strobe_max_brightness);
 }
 
@@ -82,7 +101,7 @@ static ssize_t flashlight_show_color_temperature(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.color_temperature);
 }
 
@@ -91,7 +110,7 @@ static ssize_t flashlight_show_strobe_delay(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.strobe_delay);
 }
 
@@ -116,7 +135,7 @@ static ssize_t flashlight_show_strobe_timeout(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.strobe_timeout);
 }
 
@@ -158,7 +177,7 @@ static ssize_t flashlight_show_torch_brightness(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.torch_brightness);
 }
 
@@ -198,11 +217,57 @@ static ssize_t flashlight_show_strobe_brightness(struct device *dev,
 {
 	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
+	return sprintf(buf, "%d\n",
 		       flashlight_dev->props.strobe_brightness);
 }
 
+static ssize_t flashlight_show_torch_on(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int rc;
+	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
+	long brightness;
 
+	brightness = 12; /* torch level is 6, rt5081_torch_level[6]=0x0C */
+	rc = -ENXIO;
+
+	mutex_lock(&flashlight_dev->ops_lock);
+	if (flashlight_dev->ops &&
+	    flashlight_dev->ops->set_torch_brightness) {
+		pr_debug("flashlight: programing key set torch brightness to %ld\n",
+			 brightness);
+		flashlight_dev->props.torch_brightness = brightness;
+		flashlight_dev->ops->set_torch_brightness(
+			flashlight_dev, brightness);
+	}
+	mutex_unlock(&flashlight_dev->ops_lock);
+
+	rc =  flashlight_dev->ops->set_mode(flashlight_dev, 1);
+
+	return rc;
+}
+
+static ssize_t flashlight_show_torch_off(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int rc;
+	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
+
+	rc =  flashlight_dev->ops->set_mode(flashlight_dev, 0);
+
+	return rc;
+}
+
+static ssize_t flashlight_show_torch_state(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int rc;
+	struct flashlight_device *flashlight_dev = to_flashlight_device(dev);
+
+	rc =  flashlight_dev->ops->get_mode(flashlight_dev);
+
+	return sprintf(buf, "%d\n", rc);
+}
 
 static struct class *flashlight_class;
 
@@ -232,26 +297,33 @@ static void flashlight_device_release(struct device *dev)
 }
 
 
-static DEVICE_ATTR(name, 0444, flashlight_show_name, NULL);
-static DEVICE_ATTR(type, 0444, flashlight_show_type, NULL);
-static DEVICE_ATTR(mode, 0444, flashlight_show_mode, NULL);
-static DEVICE_ATTR(torch_max_brightness, 0444,
+static DEVICE_ATTR(name, S_IRUGO, flashlight_show_name, NULL);
+static DEVICE_ATTR(type, S_IRUGO, flashlight_show_type, NULL);
+static DEVICE_ATTR(mode, S_IRUGO | S_IWUSR | S_IWGRP,
+	flashlight_show_mode, flashlight_store_mode);
+static DEVICE_ATTR(torch_max_brightness, S_IRUGO,
 	flashlight_show_torch_max_brightness, NULL);
-static DEVICE_ATTR(strobe_max_brightness, 0444,
+static DEVICE_ATTR(strobe_max_brightness, S_IRUGO,
 	flashlight_show_strobe_max_brightness, NULL);
-static DEVICE_ATTR(color_temperature, 0444,
+static DEVICE_ATTR(color_temperature, S_IRUGO,
 	flashlight_show_color_temperature, NULL);
-static DEVICE_ATTR(strobe_delay, 0664,
+static DEVICE_ATTR(strobe_delay, S_IRUGO | S_IWUSR | S_IWGRP,
 	flashlight_show_strobe_delay, NULL);
-static DEVICE_ATTR(strobe_timeout, 0664,
+static DEVICE_ATTR(strobe_timeout, S_IRUGO | S_IWUSR | S_IWGRP,
 	flashlight_show_strobe_timeout,
 	flashlight_store_strobe_timeout);
-static DEVICE_ATTR(torch_brightness, 0664,
+static DEVICE_ATTR(torch_brightness, S_IRUGO | S_IWUSR | S_IWGRP,
 	flashlight_show_torch_brightness,
 	flashlight_store_torch_brightness);
-static DEVICE_ATTR(strobe_brightness, 0664,
+static DEVICE_ATTR(strobe_brightness, S_IRUGO | S_IWUSR | S_IWGRP,
 	flashlight_show_strobe_brightness,
 	flashlight_store_strobe_brightness);
+static DEVICE_ATTR(torch_on, S_IRUGO,
+	flashlight_show_torch_on, NULL);
+static DEVICE_ATTR(torch_off, S_IRUGO,
+	flashlight_show_torch_off, NULL);
+static DEVICE_ATTR(torch_state, S_IRUGO,
+	flashlight_show_torch_state, NULL);
 
 static struct attribute *flashlight_class_attrs[] = {
 	&dev_attr_name.attr,
@@ -264,6 +336,9 @@ static struct attribute *flashlight_class_attrs[] = {
 	&dev_attr_strobe_timeout.attr,
 	&dev_attr_torch_brightness.attr,
 	&dev_attr_strobe_brightness.attr,
+	&dev_attr_torch_on.attr,
+	&dev_attr_torch_off.attr,
+	&dev_attr_torch_state.attr,
 	NULL,
 };
 
@@ -581,14 +656,5 @@ module_exit(flashlight_class_exit);
 
 MODULE_DESCRIPTION("Flashlight Class Device");
 MODULE_AUTHOR("Patrick Chang <patrick_chang@richtek.com>");
-MODULE_VERSION("1.0.3_MTK");
+MODULE_VERSION("1.0.2_G");
 MODULE_LICENSE("GPL");
-
-/*
- * Version Note
- * 1.0.3_MTK
- * (1) Remove typedef
- *
- * 1.0.2_MTK
- * (1) Initial Release
- */

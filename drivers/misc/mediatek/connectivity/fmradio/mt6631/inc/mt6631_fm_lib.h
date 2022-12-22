@@ -46,29 +46,29 @@ enum {
 };
 
 struct mt6631_fm_cqi {
-	unsigned short ch;
-	unsigned short rssi;
-	unsigned short reserve;
+	fm_u16 ch;
+	fm_u16 rssi;
+	fm_u16 reserve;
 };
 
 struct adapt_fm_cqi {
-	signed int ch;
-	signed int rssi;
-	signed int reserve;
+	fm_s32 ch;
+	fm_s32 rssi;
+	fm_s32 reserve;
 };
 
 struct mt6631_full_cqi {
-	unsigned short ch;
-	unsigned short rssi;
-	unsigned short pamd;
-	unsigned short pr;
-	unsigned short fpamd;
-	unsigned short mr;
-	unsigned short atdc;
-	unsigned short prx;
-	unsigned short atdev;
-	unsigned short smg;		/* soft-mute gain */
-	unsigned short drssi;		/* delta rssi */
+	fm_u16 ch;
+	fm_u16 rssi;
+	fm_u16 pamd;
+	fm_u16 pr;
+	fm_u16 fpamd;
+	fm_u16 mr;
+	fm_u16 atdc;
+	fm_u16 prx;
+	fm_u16 atdev;
+	fm_u16 smg;		/* soft-mute gain */
+	fm_u16 drssi;		/* delta rssi */
 };
 
 #endif

@@ -54,16 +54,13 @@
  * Low battery level define
  * ==============================================================================
  */
-#define LOW_BATTERY_LEVEL enum LOW_BATTERY_LEVEL_TAG
-#define LOW_BATTERY_PRIO enum LOW_BATTERY_PRIO_TAG
-
-enum LOW_BATTERY_LEVEL_TAG {
+typedef enum LOW_BATTERY_LEVEL_TAG {
 	LOW_BATTERY_LEVEL_0 = 0,
 	LOW_BATTERY_LEVEL_1 = 1,
 	LOW_BATTERY_LEVEL_2 = 2
-};
+} LOW_BATTERY_LEVEL;
 
-enum LOW_BATTERY_PRIO_TAG {
+typedef enum LOW_BATTERY_PRIO_TAG {
 	LOW_BATTERY_PRIO_CPU_B = 0,
 	LOW_BATTERY_PRIO_CPU_L = 1,
 	LOW_BATTERY_PRIO_GPU = 2,
@@ -73,7 +70,7 @@ enum LOW_BATTERY_PRIO_TAG {
 	LOW_BATTERY_PRIO_VIDEO = 6,
 	LOW_BATTERY_PRIO_WIFI = 7,
 	LOW_BATTERY_PRIO_BACKLIGHT = 8
-};
+} LOW_BATTERY_PRIO;
 
 extern void (*low_battery_callback)(LOW_BATTERY_LEVEL);
 extern void register_low_battery_notify(void (*low_battery_callback) (LOW_BATTERY_LEVEL),
@@ -84,22 +81,19 @@ extern void register_low_battery_notify(void (*low_battery_callback) (LOW_BATTER
  * Battery OC level define
  * ==============================================================================
  */
-#define BATTERY_OC_LEVEL enum BATTERY_OC_LEVEL_TAG
-#define BATTERY_OC_PRIO enum BATTERY_OC_PRIO_TAG
-
-enum BATTERY_OC_LEVEL_TAG {
+typedef enum BATTERY_OC_LEVEL_TAG {
 	BATTERY_OC_LEVEL_0 = 0,
 	BATTERY_OC_LEVEL_1 = 1
-};
+} BATTERY_OC_LEVEL;
 
-enum BATTERY_OC_PRIO_TAG {
+typedef enum BATTERY_OC_PRIO_TAG {
 	BATTERY_OC_PRIO_CPU_B = 0,
 	BATTERY_OC_PRIO_CPU_L = 1,
 	BATTERY_OC_PRIO_GPU = 2,
 	BATTERY_OC_PRIO_MD = 3,
 	BATTERY_OC_PRIO_MD5 = 4,
 	BATTERY_OC_PRIO_FLASHLIGHT = 5
-};
+} BATTERY_OC_PRIO;
 
 extern void (*battery_oc_callback)(BATTERY_OC_LEVEL);
 extern void register_battery_oc_notify(void (*battery_oc_callback) (BATTERY_OC_LEVEL),
@@ -109,15 +103,12 @@ extern void register_battery_oc_notify(void (*battery_oc_callback) (BATTERY_OC_L
  * Battery percent define
  * ==============================================================================
  */
-#define BATTERY_PERCENT_LEVEL enum BATTERY_PERCENT_LEVEL_TAG
-#define BATTERY_PERCENT_PRIO enum BATTERY_PERCENT_PRIO_TAG
-
-enum BATTERY_PERCENT_LEVEL_TAG {
+typedef enum BATTERY_PERCENT_LEVEL_TAG {
 	BATTERY_PERCENT_LEVEL_0 = 0,
 	BATTERY_PERCENT_LEVEL_1 = 1
-};
+} BATTERY_PERCENT_LEVEL;
 
-enum BATTERY_PERCENT_PRIO_TAG {
+typedef enum BATTERY_PERCENT_PRIO_TAG {
 	BATTERY_PERCENT_PRIO_CPU_B = 0,
 	BATTERY_PERCENT_PRIO_CPU_L = 1,
 	BATTERY_PERCENT_PRIO_GPU = 2,
@@ -127,7 +118,7 @@ enum BATTERY_PERCENT_PRIO_TAG {
 	BATTERY_PERCENT_PRIO_VIDEO = 6,
 	BATTERY_PERCENT_PRIO_WIFI = 7,
 	BATTERY_PERCENT_PRIO_BACKLIGHT = 8
-};
+} BATTERY_PERCENT_PRIO;
 
 extern void (*battery_percent_callback)(BATTERY_PERCENT_LEVEL);
 extern void
@@ -135,8 +126,7 @@ register_battery_percent_notify(void (*battery_percent_callback) (BATTERY_PERCEN
 				BATTERY_PERCENT_PRIO prio_val);
 
 /* ADC Channel Number */
-#define pmic_adc_ch_list_enum enum pmic_adc_ch_list_tag
-enum pmic_adc_ch_list_tag {
+typedef enum {
 	PMIC_AUX_BATSNS_AP =		0x000,
 	PMIC_AUX_ISENSE_AP,
 	PMIC_AUX_VCDT_AP,
@@ -155,10 +145,9 @@ enum pmic_adc_ch_list_tag {
 	PMIC_AUX_CH15,
 	PMIC_AUX_CH16,
 	PMIC_AUX_CH4_DCXO = 0x10000004,
-};
+} pmic_adc_ch_list_enum;
 
-#define MT65XX_POWER enum MT_POWER_TAG
-enum MT_POWER_TAG {
+typedef enum MT_POWER_TAG {
 	MT6351_POWER_LDO_VA18,
 	MT6351_POWER_LDO_VTCXO24,
 	MT6351_POWER_LDO_VTCXO28,
@@ -194,15 +183,13 @@ enum MT_POWER_TAG {
 	MT65XX_POWER_COUNT_END,
 	MT65XX_POWER_LDO_DEFAULT,
 	MT65XX_POWER_NONE = -1
-};
+} MT65XX_POWER;
 
 /*==============================================================================
  * DLPT define
  *==============================================================================
  */
-#define DLPT_PRIO enum DLPT_PRIO_TAG
-
-enum DLPT_PRIO_TAG {
+typedef enum DLPT_PRIO_TAG {
 	DLPT_PRIO_PBM = 0,
 	DLPT_PRIO_CPU_B = 1,
 	DLPT_PRIO_CPU_L = 2,
@@ -213,7 +200,7 @@ enum DLPT_PRIO_TAG {
 	DLPT_PRIO_VIDEO = 7,
 	DLPT_PRIO_WIFI = 8,
 	DLPT_PRIO_BACKLIGHT = 9
-};
+} DLPT_PRIO;
 
 extern void (*dlpt_callback)(unsigned int);
 extern void register_dlpt_notify(void (*dlpt_callback)(unsigned int), DLPT_PRIO prio_val);
@@ -233,7 +220,7 @@ extern unsigned int g_pmic_pad_vbif28_vol;
  * PMIC IRQ ENUM define
  *==============================================================================
  */
-enum PMIC_IRQ_ENUM {
+typedef enum {
 	INT_PWRKEY,
 	INT_HOMEKEY,
 	INT_PWRKEY_R,
@@ -298,7 +285,7 @@ enum PMIC_IRQ_ENUM {
 	NO_USE_3_13,
 	NO_USE_3_14,
 	NO_USE_3_15,
-};
+} PMIC_IRQ_ENUM;
 
 /*==============================================================================
  * PMIC auxadc define

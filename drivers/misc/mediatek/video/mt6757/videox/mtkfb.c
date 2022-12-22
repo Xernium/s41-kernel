@@ -393,7 +393,7 @@ EXPORT_SYMBOL(mtkfb_get_backlight_pwm);
 void mtkfb_waitVsync(void)
 {
 	if (primary_display_is_sleepd()) {
-		DISPCHECK("[MTKFB_VSYNC]:mtkfb has suspend, return directly\n");
+		DISPMSG("[MTKFB_VSYNC]:mtkfb has suspend, return directly\n");
 		msleep(20);
 		return;
 	}
@@ -855,7 +855,7 @@ static int mtkfb_check_var(struct fb_var_screeninfo *var, struct fb_info *fbi)
 	if (var->yres + var->yoffset > var->yres_virtual)
 		var->yoffset = var->yres_virtual - var->yres;
 
-	DISPCHECK("mtkfb_check_var,xres=%u,yres=%u,x_virt=%u,y_virt=%u,xoffset=%u,yoffset=%u,bits_per_pixel=%u)\n",
+	DISPMSG("mtkfb_check_var,xres=%u,yres=%u,x_virt=%u,y_virt=%u,xoffset=%u,yoffset=%u,bits_per_pixel=%u)\n",
 		var->xres, var->yres, var->xres_virtual, var->yres_virtual,
 		var->xoffset, var->yoffset, var->bits_per_pixel);
 
@@ -1121,6 +1121,11 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 				return -EFAULT;
 			}
 
+			if (displayid > MTKFB_MAX_DISPLAY_COUNT) {
+				DISPERR("[FB]: invalid display id:%d\n", displayid);
+				return -EFAULT;
+			}
+
 			if (displayid == 0) {
 				dispif_info[displayid].displayWidth = primary_display_get_width();
 				dispif_info[displayid].displayHeight = primary_display_get_height();
@@ -1134,7 +1139,6 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 			} else {
 				DISPERR("information for displayid: %d is not available now\n",
 					displayid);
-				return -EFAULT;
 			}
 
 			if (copy_to_user((void __user *)arg, &(dispif_info[displayid]),
@@ -1493,19 +1497,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 			if (copy_from_user(&var, argp, sizeof(var)))
 				return -EFAULT;
 
-			/* invalidate params from userspace */
-			if (var.xres > MTK_FB_XRES || var.yres > MTK_FB_YRES ||
-			    var.xres_virtual > MTK_FB_XRESV ||
-			    var.yres_virtual > MTK_FB_YRESV ||
-			    var.xoffset > MTK_FB_XRES ||
-			    var.yoffset > MTK_FB_YRESV * (MTK_FB_PAGES - 1)) {
-				DISPERR("invalidate params from userspace\n");
-				return -EFAULT;
-			}
 			info->var.yoffset = var.yoffset;
-			/*  check var.yoffset passed by user space */
-			if (info->var.yres + info->var.yoffset > info->var.yres_virtual)
-				info->var.yoffset = info->var.yres_virtual - info->var.yres;
 			init_framebuffer(info);
 
 			return mtkfb_pan_display_impl(&var, info);
@@ -1514,7 +1506,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 
 	case MTKFB_GET_DEFAULT_UPDATESPEED:
 		{
-			unsigned int speed = 0;
+			unsigned int speed;
 
 			MTKFB_LOG("[MTKFB] get default update speed\n");
 			/* DISP_Get_Default_UpdateSpeed(&speed); */
@@ -1525,7 +1517,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 
 	case MTKFB_GET_CURR_UPDATESPEED:
 		{
-			unsigned int speed = 0;
+			unsigned int speed;
 
 			MTKFB_LOG("[MTKFB] get current update speed\n");
 			/* DISP_Get_Current_UpdateSpeed(&speed); */
@@ -1536,7 +1528,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 
 	case MTKFB_CHANGE_UPDATESPEED:
 		{
-			unsigned int speed = 0;
+			unsigned int speed;
 
 			MTKFB_LOG("[MTKFB] change update speed\n");
 
@@ -1699,7 +1691,7 @@ static int mtkfb_compat_ioctl(struct fb_info *info, unsigned int cmd, unsigned l
 				pr_err("COMPAT_MTKFB_GET_DISPLAY_IF_INFORMATION failed\n");
 				return -EFAULT;
 			}
-			if (displayid >= MTKFB_MAX_DISPLAY_COUNT) {
+			if (displayid > MTKFB_MAX_DISPLAY_COUNT) {
 				pr_err("[FB]: invalid display id:%d\n", displayid);
 				return -EFAULT;
 			}
@@ -1845,7 +1837,7 @@ static int mtkfb_compat_ioctl(struct fb_info *info, unsigned int cmd, unsigned l
 			/* atomic_set(&OverlaySettingDirtyFlag, 1); */
 			/* atomic_set(&OverlaySettingApplied, 0); */
 			/* mutex_unlock(&OverlaySettingMutex); */
-			/* mmprofile_logStructure(MTKFB_MMP_Events.SetOverlayLayers, MMPROFILE_FLAG_END,*/
+			/* MMProfileLogStructure(MTKFB_MMP_Events.SetOverlayLayers, MMProfileFlagEnd,*/
 						 /*layerInfo, struct mmp_fb_overlay_layers); */
 			primary_display_config_input_multiple(&session_input);
 			/* primary_display_trigger(1, NULL, 0); */
@@ -2185,54 +2177,63 @@ unsigned int is_lcm_inited;
 unsigned int vramsize;
 phys_addr_t fb_base;
 static int is_videofb_parse_done;
+static int fb_early_init_dt_get_chosen(unsigned long node, const char *uname, int depth,
+				       void *p_ret_node)
+{
+	if (depth != 1 || (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
+		return 0;
 
-static int __parse_tag_videolfb_extra(struct device_node *node)
+	*(unsigned long *)p_ret_node = node;
+	return 1;
+}
+
+int __parse_tag_videolfb_extra(unsigned long node)
 {
 	void *prop;
 	unsigned long size = 0;
 	u32 fb_base_h, fb_base_l;
 
-	prop = (void *)of_get_property(node, "atag,videolfb-fb_base_h", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-fb_base_h", NULL);
 	if (!prop)
 		return -1;
 	fb_base_h = of_read_number(prop, 1);
 
-	prop = (void *)of_get_property(node, "atag,videolfb-fb_base_l", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-fb_base_l", NULL);
 	if (!prop)
 		return -1;
 	fb_base_l = of_read_number(prop, 1);
 
 	fb_base = ((u64) fb_base_h << 32) | (u64) fb_base_l;
 
-	prop = (void *)of_get_property(node, "atag,videolfb-islcmfound", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-islcmfound", NULL);
 	if (!prop)
 		return -1;
 	islcmconnected = of_read_number(prop, 1);
 
-	prop = (void *)of_get_property(node, "atag,videolfb-islcm_inited", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-islcm_inited", NULL);
 	if (!prop)
 		is_lcm_inited = 1;
 	else
 		is_lcm_inited = of_read_number(prop, 1);
 
-	prop = (void *)of_get_property(node, "atag,videolfb-fps", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-fps", NULL);
 	if (!prop)
 		return -1;
 	lcd_fps = of_read_number(prop, 1);
 	if (lcd_fps == 0)
 		lcd_fps = 6000;
 
-	prop = (void *)of_get_property(node, "atag,videolfb-vramSize", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-vramSize", NULL);
 	if (!prop)
 		return -1;
 	vramsize = of_read_number(prop, 1);
 
-	prop = (void *)of_get_property(node, "atag,videolfb-fb_base_l", NULL);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-fb_base_l", NULL);
 	if (!prop)
 		return -1;
 	fb_base_l = of_read_number(prop, 1);
 
-	prop = (void *)of_get_property(node, "atag,videolfb-lcmname", (int *)&size);
+	prop = (void *)of_get_flat_dt_prop(node, "atag,videolfb-lcmname", (int *)&size);
 	if (!prop)
 		return -1;
 	if (size >= sizeof(mtkfb_lcm_name)) {
@@ -2242,19 +2243,19 @@ static int __parse_tag_videolfb_extra(struct device_node *node)
 	memset((void *)mtkfb_lcm_name, 0, sizeof(mtkfb_lcm_name));
 	strncpy((char *)mtkfb_lcm_name, prop, sizeof(mtkfb_lcm_name));
 	mtkfb_lcm_name[size] = '\0';
-	DISPMSG("__parse_tag_videolfb_extra done\n");
+	pr_debug("__parse_tag_videolfb_extra done\n");
 	return 0;
 }
 
-static int __parse_tag_videolfb(struct device_node *node)
+int __parse_tag_videolfb(unsigned long node)
 {
 	struct tag_videolfb *videolfb_tag = NULL;
 	unsigned long size = 0;
 
-	videolfb_tag = (struct tag_videolfb *)of_get_property(node, "atag,videolfb", (int *)&size);
+	videolfb_tag = (struct tag_videolfb *)of_get_flat_dt_prop(node, "atag,videolfb", (int *)&size);
 	if (videolfb_tag) {
 		memset((void *)mtkfb_lcm_name, 0, sizeof(mtkfb_lcm_name));
-		strncpy((char *)mtkfb_lcm_name, videolfb_tag->lcmname, strlen(videolfb_tag->lcmname));
+		strcpy((char *)mtkfb_lcm_name, videolfb_tag->lcmname);
 		mtkfb_lcm_name[strlen(videolfb_tag->lcmname)] = '\0';
 
 		lcd_fps = videolfb_tag->fps;
@@ -2265,7 +2266,6 @@ static int __parse_tag_videolfb(struct device_node *node)
 		vramsize = videolfb_tag->vram;
 		fb_base = videolfb_tag->fb_base;
 		is_lcm_inited = 1;
-
 		return 0;
 	}
 
@@ -2277,22 +2277,19 @@ static int __parse_tag_videolfb(struct device_node *node)
 static int _parse_tag_videolfb(void)
 {
 	int ret;
-	struct device_node *chosen_node;
+	unsigned long node = 0;
 
 	DISPCHECK("[DT][videolfb]isvideofb_parse_done = %d\n", is_videofb_parse_done);
 
 	if (is_videofb_parse_done)
 		return 0;
 
-	chosen_node = of_find_node_by_path("/chosen");
-	if (!chosen_node)
-		chosen_node = of_find_node_by_path("/chosen@0");
-
-	if (chosen_node) {
-		ret = __parse_tag_videolfb(chosen_node);
+	ret = of_scan_flat_dt(fb_early_init_dt_get_chosen, &node);
+	if (node) {
+		ret = __parse_tag_videolfb(node);
 		if (!ret)
 			goto found;
-		ret = __parse_tag_videolfb_extra(chosen_node);
+		ret = __parse_tag_videolfb_extra(node);
 		if (!ret)
 			goto found;
 	} else {
@@ -2630,7 +2627,7 @@ static void mtkfb_early_suspend(void)
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		return;
 
-	DISPCHECK("[FB Driver] enter early_suspend\n");
+	DISPMSG("[FB Driver] enter early_suspend\n");
 
 	/* mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF); */
 
@@ -2643,7 +2640,7 @@ static void mtkfb_early_suspend(void)
 		return;
 	}
 
-	DISPCHECK("[FB Driver] leave early_suspend\n");
+	DISPMSG("[FB Driver] leave early_suspend\n");
 
 }
 
@@ -2665,7 +2662,7 @@ static void mtkfb_late_resume(void)
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		return;
 
-	DISPCHECK("[FB Driver] enter late_resume\n");
+	DISPMSG("[FB Driver] enter late_resume\n");
 
 	ret = primary_display_resume();
 
@@ -2674,7 +2671,7 @@ static void mtkfb_late_resume(void)
 		return;
 	}
 
-	DISPCHECK("[FB Driver] leave late_resume\n");
+	DISPMSG("[FB Driver] leave late_resume\n");
 
 }
 
@@ -2863,7 +2860,8 @@ static void __exit mtkfb_cleanup(void)
 	MSG_FUNC_LEAVE();
 }
 
-device_initcall_sync(mtkfb_init);
+
+late_initcall(mtkfb_init);
 module_exit(mtkfb_cleanup);
 
 MODULE_DESCRIPTION("MEDIATEK framebuffer driver");

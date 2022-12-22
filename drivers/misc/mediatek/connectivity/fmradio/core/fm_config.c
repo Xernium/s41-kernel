@@ -22,15 +22,15 @@
 #include "fm_patch.h"
 #include "fm_config.h"
 
-struct fm_cust_cfg fm_config;
-static unsigned short g_fm_chipid;
+fm_cust_cfg fm_config;
+static fm_u16 g_fm_chipid;
 static enum fm_cfg_chip_type g_fm_chip_type = FM_CHIP_TYPE_MAX;
 
 #define FM_CUST_CFG_PATH "fm_cust.cfg"
 
-signed int to_upper_n(signed char *str, signed int len)
+fm_s32 to_upper_n(fm_s8 *str, fm_s32 len)
 {
-	signed int i = 0;
+	fm_s32 i = 0;
 
 	for (i = 0; i < len; i++) {
 		if (('a' <= str[i]) && (str[i] <= 'z'))
@@ -40,9 +40,9 @@ signed int to_upper_n(signed char *str, signed int len)
 	return 0;
 }
 
-signed int check_hex_str(signed char *str, signed int len)
+fm_s32 check_hex_str(fm_s8 *str, fm_s32 len)
 {
-	signed int i = 0;
+	fm_s32 i = 0;
 
 	for (i = 0; i < len; i++) {
 		if ((('a' <= str[i]) && (str[i] <= 'z')) || (('A' <= str[i]) && (str[i] <= 'Z'))
@@ -56,9 +56,9 @@ signed int check_hex_str(signed char *str, signed int len)
 	return 0;
 }
 
-signed int check_dec_str(signed char *str, signed int len)
+fm_s32 check_dec_str(fm_s8 *str, fm_s32 len)
 {
-	signed int i = 0;
+	fm_s32 i = 0;
 
 	for (i = 0; i < len; i++) {
 		if (('0' <= str[i]) && (str[i] <= '9'))
@@ -70,11 +70,11 @@ signed int check_dec_str(signed char *str, signed int len)
 	return 0;
 }
 
-signed int ascii_to_hex(signed char *in_ascii, unsigned short *out_hex)
+fm_s32 ascii_to_hex(fm_s8 *in_ascii, fm_u16 *out_hex)
 {
-	signed int len = (signed int) strlen(in_ascii);
+	fm_s32 len = (fm_s32) strlen(in_ascii);
 	int i = 0;
-	unsigned short tmp;
+	fm_u16 tmp;
 
 	len = (len > 4) ? 4 : len;
 
@@ -97,9 +97,9 @@ signed int ascii_to_hex(signed char *in_ascii, unsigned short *out_hex)
 	return 0;
 }
 
-signed int ascii_to_dec(signed char *in_ascii, signed int *out_dec)
+fm_s32 ascii_to_dec(fm_s8 *in_ascii, fm_s32 *out_dec)
 {
-	signed int len = (signed int) strlen(in_ascii);
+	fm_s32 len = (fm_s32) strlen(in_ascii);
 	int i = 0;
 	int flag;
 	int multi = 1;
@@ -129,9 +129,9 @@ signed int ascii_to_dec(signed char *in_ascii, signed int *out_dec)
 	return 0;
 }
 
-signed int trim_string(signed char **start)
+fm_s32 trim_string(fm_s8 **start)
 {
-	signed char *end = *start;
+	fm_s8 *end = *start;
 
 	/* Advance to non-space character */
 	while (*(*start) == ' ')
@@ -151,9 +151,9 @@ signed int trim_string(signed char **start)
 	return end - *start;
 }
 
-signed int trim_path(signed char **start)
+fm_s32 trim_path(fm_s8 **start)
 {
-	signed char *end = *start;
+	fm_s8 *end = *start;
 
 	while (*(*start) == ' ')
 		(*start)++;
@@ -169,13 +169,13 @@ signed int trim_path(signed char **start)
 	return end - *start;
 }
 
-signed int cfg_parser(signed char *buffer, CFG_HANDLER handler, struct fm_cust_cfg *cfg)
+fm_s32 cfg_parser(fm_s8 *buffer, CFG_HANDLER handler, fm_cust_cfg *cfg)
 {
-	signed int ret = 0;
-	signed char *p = buffer;
-	signed char *group_start = NULL;
-	signed char *key_start = NULL;
-	signed char *value_start = NULL;
+	fm_s32 ret = 0;
+	fm_s8 *p = buffer;
+	fm_s8 *group_start = NULL;
+	fm_s8 *key_start = NULL;
+	fm_s8 *value_start = NULL;
 
 	enum fm_cfg_parser_state state = FM_CFG_STAT_NONE;
 
@@ -262,11 +262,11 @@ signed int cfg_parser(signed char *buffer, CFG_HANDLER handler, struct fm_cust_c
 	return ret;
 }
 
-signed int cfg_item_match(signed char *src_key, signed char *src_val, signed char *dst_key, signed int *dst_val)
+fm_s32 cfg_item_match(fm_s8 *src_key, fm_s8 *src_val, fm_s8 *dst_key, fm_s32 *dst_val)
 {
-	signed int ret = 0;
-	unsigned short tmp_hex;
-	signed int tmp_dec;
+	fm_s32 ret = 0;
+	fm_u16 tmp_hex;
+	fm_s32 tmp_dec;
 
 	/* WCN_DBG(FM_NTC|MAIN,"src_key=%s,src_val=%s\n", src_key,src_val); */
 	/* WCN_DBG(FM_NTC|MAIN,"dst_key=%s\n", dst_key); */
@@ -303,9 +303,9 @@ signed int cfg_item_match(signed char *src_key, signed char *src_val, signed cha
 	return -1;
 }
 
-static signed int cfg_item_handler(signed char *grp, signed char *key, signed char *val, struct fm_cust_cfg *cfg)
+static fm_s32 cfg_item_handler(fm_s8 *grp, fm_s8 *key, fm_s8 *val, fm_cust_cfg *cfg)
 {
-	signed int ret = 0;
+	fm_s32 ret = 0;
 	struct fm_rx_cust_cfg *rx_cfg = &cfg->rx_cfg;
 	struct fm_tx_cust_cfg *tx_cfg = &cfg->tx_cfg;
 
@@ -367,7 +367,7 @@ static signed int cfg_item_handler(signed char *grp, signed char *key, signed ch
 	return -1;
 }
 
-static signed int fm_cust_config_default(struct fm_cust_cfg *cfg)
+static fm_s32 fm_cust_config_default(fm_cust_cfg *cfg)
 {
 	if (cfg == NULL) {
 		WCN_DBG(FM_ERR | MAIN, "%s,invalid pointer\n", __func__);
@@ -398,19 +398,13 @@ static signed int fm_cust_config_default(struct fm_cust_cfg *cfg)
 		cfg->aud_cfg.aud_path = FM_AUD_MRGIF;
 		cfg->aud_cfg.i2s_info.status = FM_I2S_OFF;
 		cfg->aud_cfg.i2s_info.mode = FM_I2S_SLAVE;
-		if (g_fm_chipid == 0x6632)
-			cfg->aud_cfg.i2s_info.rate = FM_I2S_48K;
-		else
-			cfg->aud_cfg.i2s_info.rate = FM_I2S_44K;
+		cfg->aud_cfg.i2s_info.rate = FM_I2S_44K;
 		cfg->aud_cfg.i2s_pad = FM_I2S_PAD_IO;
 #elif defined FM_DIGITAL_INPUT
 		cfg->aud_cfg.aud_path = FM_AUD_I2S;
 		cfg->aud_cfg.i2s_info.status = FM_I2S_OFF;
 		cfg->aud_cfg.i2s_info.mode = FM_I2S_SLAVE;
-		if (g_fm_chipid == 0x6632)
-			cfg->aud_cfg.i2s_info.rate = FM_I2S_48K;
-		else
-			cfg->aud_cfg.i2s_info.rate = FM_I2S_44K;
+		cfg->aud_cfg.i2s_info.rate = FM_I2S_44K;
 		cfg->aud_cfg.i2s_pad = FM_I2S_PAD_IO;
 #elif defined FM_ANALOG_INPUT
 		cfg->aud_cfg.aud_path = FM_AUD_ANALOG;
@@ -443,11 +437,11 @@ static signed int fm_cust_config_default(struct fm_cust_cfg *cfg)
 	return 0;
 }
 
-static signed int fm_cust_config_file(const signed char *filename, struct fm_cust_cfg *cfg)
+static fm_s32 fm_cust_config_file(const fm_s8 *filename, fm_cust_cfg *cfg)
 {
-	signed int ret = 0;
-	signed char *buf = NULL;
-	signed int file_len = 0;
+	fm_s32 ret = 0;
+	fm_s8 *buf = NULL;
+	fm_s32 file_len = 0;
 
 	buf = fm_zalloc(4096);
 	if (!buf) {
@@ -471,7 +465,7 @@ out:
 	return ret;
 }
 
-static signed int fm_cust_config_print(struct fm_cust_cfg *cfg)
+static fm_s32 fm_cust_config_print(fm_cust_cfg *cfg)
 {
 	WCN_DBG(FM_NTC | MAIN, "0x%x configs:\n", g_fm_chipid);
 	WCN_DBG(FM_NTC | MAIN, "RX->rssi_l:\t%d\n", cfg->rx_cfg.long_ana_rssi_th);
@@ -498,11 +492,11 @@ static signed int fm_cust_config_print(struct fm_cust_cfg *cfg)
 	return 0;
 }
 
-signed int fm_cust_config_setup(const signed char *filepath)
+fm_s32 fm_cust_config_setup(const fm_s8 *filepath)
 {
-	signed int ret = 0;
-	signed char *filep = NULL;
-	signed char file_path[51] = { 0 };
+	fm_s32 ret = 0;
+	fm_s8 *filep = NULL;
+	fm_s8 file_path[51] = { 0 };
 
 	fm_cust_config_default(&fm_config);
 	WCN_DBG(FM_NTC | MAIN, "FM default config\n");
@@ -522,9 +516,9 @@ signed int fm_cust_config_setup(const signed char *filepath)
 	return ret;
 }
 
-unsigned short fm_cust_config_fetch(enum fm_cust_cfg_op op_code)
+fm_u16 fm_cust_config_fetch(enum fm_cust_cfg_op op_code)
 {
-	unsigned short tmp = 0;
+	fm_u16 tmp = 0;
 
 	switch (op_code) {
 	/* For FM RX */
@@ -590,7 +584,7 @@ unsigned short fm_cust_config_fetch(enum fm_cust_cfg_op op_code)
 	WCN_DBG(FM_DBG | MAIN, "cust cfg %d: 0x%04x\n", op_code, tmp);
 	return tmp;
 }
-unsigned short fm_cust_config_chip(unsigned short chipid, enum fm_cfg_chip_type type)
+fm_u16 fm_cust_config_chip(fm_u16 chipid, enum fm_cfg_chip_type type)
 {
 	g_fm_chipid = chipid;
 	g_fm_chip_type = type;

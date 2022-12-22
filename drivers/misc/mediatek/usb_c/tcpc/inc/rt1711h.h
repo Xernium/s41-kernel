@@ -57,7 +57,7 @@
 #define RT1715_DID_D			0x2173
 
 /*
- * RT1711H_REG_PHY_CTRL1			(0x80)
+ * RT1711H_REG_PHY_CTRL1            (0x80)
  */
 
 #define RT1711H_REG_PHY_CTRL1_SET( \

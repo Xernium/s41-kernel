@@ -40,7 +40,7 @@ static pgprot_t __get_dma_pgprot(struct dma_attrs *attrs, pgprot_t prot,
 static struct gen_pool *atomic_pool;
 
 #define DEFAULT_DMA_COHERENT_POOL_SIZE  SZ_256K
-static size_t atomic_pool_size __initdata = DEFAULT_DMA_COHERENT_POOL_SIZE;
+static size_t atomic_pool_size = DEFAULT_DMA_COHERENT_POOL_SIZE;
 
 static int __init early_coherent_pool(char *p)
 {
@@ -427,7 +427,6 @@ static void *__dummy_alloc(struct device *dev, size_t size,
 			   dma_addr_t *dma_handle, gfp_t flags,
 			   struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return NULL;
 }
 
@@ -435,7 +434,6 @@ static void __dummy_free(struct device *dev, size_t size,
 			 void *vaddr, dma_addr_t dma_handle,
 			 struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 }
 
 static int __dummy_mmap(struct device *dev,
@@ -443,7 +441,6 @@ static int __dummy_mmap(struct device *dev,
 			void *cpu_addr, dma_addr_t dma_addr, size_t size,
 			struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return -ENXIO;
 }
 
@@ -452,7 +449,6 @@ static dma_addr_t __dummy_map_page(struct device *dev, struct page *page,
 				   enum dma_data_direction dir,
 				   struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return DMA_ERROR_CODE;
 }
 
@@ -460,14 +456,12 @@ static void __dummy_unmap_page(struct device *dev, dma_addr_t dev_addr,
 			       size_t size, enum dma_data_direction dir,
 			       struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 }
 
 static int __dummy_map_sg(struct device *dev, struct scatterlist *sgl,
 			  int nelems, enum dma_data_direction dir,
 			  struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return 0;
 }
 
@@ -476,32 +470,27 @@ static void __dummy_unmap_sg(struct device *dev,
 			     enum dma_data_direction dir,
 			     struct dma_attrs *attrs)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 }
 
 static void __dummy_sync_single(struct device *dev,
 				dma_addr_t dev_addr, size_t size,
 				enum dma_data_direction dir)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 }
 
 static void __dummy_sync_sg(struct device *dev,
 			    struct scatterlist *sgl, int nelems,
 			    enum dma_data_direction dir)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 }
 
 static int __dummy_mapping_error(struct device *hwdev, dma_addr_t dma_addr)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return 1;
 }
 
 static int __dummy_dma_supported(struct device *hwdev, u64 mask)
 {
-	aee_kernel_warning(NULL, "Calling Dummy DMA Operation");
 	return 0;
 }
 
@@ -907,7 +896,7 @@ static int __iommu_attach_notifier(struct notifier_block *nb,
 	return 0;
 }
 
-static int __init register_iommu_dma_ops_notifier(struct bus_type *bus)
+static int register_iommu_dma_ops_notifier(struct bus_type *bus)
 {
 	struct notifier_block *nb = kzalloc(sizeof(*nb), GFP_KERNEL);
 	int ret;

@@ -406,7 +406,7 @@ static int mtkfb_fbinfo_init(struct fb_info *info)
 	struct fb_var_screeninfo var;
 	int r = 0;
 
-	WARN_ON(!fbdev->fb_va_base);
+	ASSERT(!fbdev->fb_va_base);
 	info->fbops = &mtkfb_ops;
 	info->flags = FBINFO_FLAG_DEFAULT;
 	info->screen_base = (char *)fbdev->fb_va_base;
@@ -479,7 +479,7 @@ static void mtkfb_free_resources(struct mtkfb_device *fbdev, int state)
 	switch (state) {
 	case MTKFB_ACTIVE:
 		r = unregister_framebuffer(fbdev->fb_info);
-		WARN_ON(r == 0);
+		ASSERT(r == 0);
 		/* lint -fallthrough */
 	case 4:
 		mtkfb_fbinfo_cleanup(fbdev);
@@ -664,8 +664,9 @@ int mtkfb_allocate_framebuffer(phys_addr_t pa_start, phys_addr_t pa_end, unsigne
 	return 0;
 }
 
-static int mtkfb_probe(struct platform_device *pdev)
+static int mtkfb_probe(struct device *dev)
 {
+	struct platform_device *pdev;
 	struct mtkfb_device *fbdev = NULL;
 	struct fb_info *fbi;
 	int init_state;
@@ -678,7 +679,9 @@ static int mtkfb_probe(struct platform_device *pdev)
 #endif
 	init_state = 0;
 
-	fbi = framebuffer_alloc(sizeof(struct mtkfb_device), &(pdev->dev));
+	pdev = to_platform_device(dev);
+
+	fbi = framebuffer_alloc(sizeof(struct mtkfb_device), dev);
 	if (!fbi) {
 		DISPCHECK("unable to allocate memory for device info\n");
 		r = -ENOMEM;
@@ -687,8 +690,8 @@ static int mtkfb_probe(struct platform_device *pdev)
 
 	fbdev = (struct mtkfb_device *)fbi->par;
 	fbdev->fb_info = fbi;
-	fbdev->dev = &(pdev->dev);
-	dev_set_drvdata(&(pdev->dev), fbdev);
+	fbdev->dev = dev;
+	dev_set_drvdata(dev, fbdev);
 
 	{
 
@@ -788,13 +791,13 @@ static const struct of_device_id mtkfb_of_ids[] = {
 };
 
 static struct platform_driver mtkfb_driver = {
-	.probe = mtkfb_probe,
 	.driver = {
 		.name = MTKFB_DRIVER,
 #ifdef CONFIG_PM
 		.pm = NULL,
 #endif
 		.bus = &platform_bus_type,
+		.probe = mtkfb_probe,
 		.remove = mtkfb_remove,
 		.suspend = NULL,
 		.resume = NULL,

@@ -70,9 +70,7 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
-#include <trace/events/pagemap.h>
-
-#ifdef CONFIG_MTK_USE_RESERVED_EXT_MEM
+#ifdef CONFIG_MTK_EXTMEM
 #include <linux/exm_driver.h>
 #endif
 
@@ -1138,7 +1136,6 @@ again:
 	init_rss_vec(rss);
 	start_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 	pte = start_pte;
-	flush_tlb_batched_pending(mm);
 	arch_enter_lazy_mmu_mode();
 	do {
 		pte_t ptent = *pte;
@@ -1770,7 +1767,7 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
 	 * un-COW'ed pages by matching them up with "vma->vm_pgoff".
 	 * See vm_normal_page() for details.
 	 */
-#ifdef CONFIG_MTK_USE_RESERVED_EXT_MEM
+#ifdef CONFIG_MTK_EXTMEM
 	if (addr == vma->vm_start && end == vma->vm_end)
 		vma->vm_pgoff = pfn;
 	else if (is_cow_mapping(vma->vm_flags))
@@ -2118,7 +2115,7 @@ static inline int wp_page_reuse(struct mm_struct *mm,
  */
 static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, pte_t *page_table, pmd_t *pmd,
-			pte_t orig_pte, struct page *old_page, gfp_t gfp)
+			pte_t orig_pte, struct page *old_page)
 {
 	struct page *new_page = NULL;
 	spinlock_t *ptl = NULL;
@@ -2132,11 +2129,11 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		goto oom;
 
 	if (is_zero_pfn(pte_pfn(orig_pte))) {
-		new_page = alloc_zeroed_user_highpage(gfp, vma, address);
+		new_page = alloc_zeroed_user_highpage_movable(vma, address);
 		if (!new_page)
 			goto oom;
 	} else {
-		new_page = alloc_page_vma(gfp, vma, address);
+		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma, address);
 		if (!new_page)
 			goto oom;
 		cow_user_page(new_page, old_page, address, vma);
@@ -2343,14 +2340,10 @@ static int wp_page_shared(struct mm_struct *mm, struct vm_area_struct *vma,
  */
 static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		unsigned long address, pte_t *page_table, pmd_t *pmd,
-		spinlock_t *ptl, pte_t orig_pte, unsigned int flags)
+		spinlock_t *ptl, pte_t orig_pte)
 	__releases(ptl)
 {
 	struct page *old_page;
-	gfp_t gfp = GFP_HIGHUSER_MOVABLE;
-
-	if (IS_ENABLED(CONFIG_CMA) && (flags & FAULT_FLAG_NO_CMA))
-		gfp &= ~(__GFP_MOVABLE | __GFP_CMA);
 
 	old_page = vm_normal_page(vma, address, orig_pte);
 	if (!old_page) {
@@ -2368,7 +2361,7 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 		pte_unmap_unlock(page_table, ptl);
 		return wp_page_copy(mm, vma, address, page_table, pmd,
-				    orig_pte, old_page, gfp);
+				    orig_pte, old_page);
 	}
 
 	/*
@@ -2415,7 +2408,7 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	pte_unmap_unlock(page_table, ptl);
 	return wp_page_copy(mm, vma, address, page_table, pmd,
-			    orig_pte, old_page, gfp);
+			    orig_pte, old_page);
 }
 
 static void unmap_mapping_range_vma(struct vm_area_struct *vma,
@@ -2537,9 +2530,6 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
 	page = lookup_swap_cache(entry);
 	if (!page) {
-		/* Trace event for swap-in */
-		trace_mm_swap_op_rd(swp_type(entry));
-
 		page = swapin_readahead(entry,
 					GFP_HIGHUSER_MOVABLE, vma, address);
 		if (!page) {
@@ -2574,16 +2564,9 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 	if (!locked) {
-		/* Trace event for swap-in */
-		if (ret == VM_FAULT_MAJOR)
-			trace_mm_swap_op_rd_done(swp_type(entry));
 		ret |= VM_FAULT_RETRY;
 		goto out_release;
 	}
-
-	/* Trace event for swap-in */
-	if (ret == VM_FAULT_MAJOR)
-		trace_mm_swap_op_rd_done(swp_type(entry));
 
 	/*
 	 * Make sure try_to_free_swap or reuse_swap_page or swapoff did not
@@ -2668,7 +2651,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	}
 
 	if (flags & FAULT_FLAG_WRITE) {
-		ret |= do_wp_page(mm, vma, address, page_table, pmd, ptl, pte, flags);
+		ret |= do_wp_page(mm, vma, address, page_table, pmd, ptl, pte);
 		if (ret & VM_FAULT_ERROR)
 			ret &= VM_FAULT_ERROR;
 		goto out;
@@ -2695,6 +2678,40 @@ out_release:
 }
 
 /*
+ * This is like a special single-page "expand_{down|up}wards()",
+ * except we must first make sure that 'address{-|+}PAGE_SIZE'
+ * doesn't hit another vma.
+ */
+static inline int check_stack_guard_page(struct vm_area_struct *vma, unsigned long address)
+{
+	address &= PAGE_MASK;
+	if ((vma->vm_flags & VM_GROWSDOWN) && address == vma->vm_start) {
+		struct vm_area_struct *prev = vma->vm_prev;
+
+		/*
+		 * Is there a mapping abutting this one below?
+		 *
+		 * That's only ok if it's the same stack mapping
+		 * that has gotten split..
+		 */
+		if (prev && prev->vm_end == address)
+			return prev->vm_flags & VM_GROWSDOWN ? 0 : -ENOMEM;
+
+		return expand_downwards(vma, address - PAGE_SIZE);
+	}
+	if ((vma->vm_flags & VM_GROWSUP) && address + PAGE_SIZE == vma->vm_end) {
+		struct vm_area_struct *next = vma->vm_next;
+
+		/* As VM_GROWSDOWN but s/below/above/ */
+		if (next && next->vm_start == address + PAGE_SIZE)
+			return next->vm_flags & VM_GROWSUP ? 0 : -ENOMEM;
+
+		return expand_upwards(vma, address + PAGE_SIZE);
+	}
+	return 0;
+}
+
+/*
  * We enter with non-exclusive mmap_sem (to exclude vma changes,
  * but allow concurrent faults), and pte mapped but not yet locked.
  * We return with mmap_sem still held, but pte unmapped and unlocked.
@@ -2713,6 +2730,10 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	/* File mapping without ->vm_ops ? */
 	if (vma->vm_flags & VM_SHARED)
 		return VM_FAULT_SIGBUS;
+
+	/* Check if we need to add a guard page to the stack */
+	if (check_stack_guard_page(vma, address) < 0)
+		return VM_FAULT_SIGSEGV;
 
 	/* Use the zero-page for reads */
 	if (!(flags & FAULT_FLAG_WRITE) && !mm_forbids_zeropage(mm)) {
@@ -3020,15 +3041,11 @@ static int do_cow_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	spinlock_t *ptl;
 	pte_t *pte;
 	int ret;
-	gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_CMA;
 
 	if (unlikely(anon_vma_prepare(vma)))
 		return VM_FAULT_OOM;
 
-	if (IS_ENABLED(CONFIG_CMA) && (flags & FAULT_FLAG_NO_CMA))
-		gfp &= ~(__GFP_MOVABLE | __GFP_CMA);
-
-	new_page = alloc_page_vma(gfp, vma, address);
+	new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE | __GFP_CMA, vma, address);
 	if (!new_page)
 		return VM_FAULT_OOM;
 
@@ -3348,7 +3365,7 @@ static int handle_pte_fault(struct mm_struct *mm,
 	if (flags & FAULT_FLAG_WRITE) {
 		if (!pte_write(entry))
 			return do_wp_page(mm, vma, address,
-					pte, pmd, ptl, entry, flags);
+					pte, pmd, ptl, entry);
 		entry = pte_mkdirty(entry);
 	}
 	entry = pte_mkyoung(entry);
@@ -3711,7 +3728,7 @@ static int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
 		ret = get_user_pages(tsk, mm, addr, 1,
 				write, 1, &page, &vma);
 		if (ret <= 0) {
-#ifdef CONFIG_MTK_USE_RESERVED_EXT_MEM
+#ifdef CONFIG_MTK_EXTMEM
 			if (!write) {
 				vma = find_vma(mm, addr);
 				if (!vma || vma->vm_start > addr)

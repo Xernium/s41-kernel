@@ -81,21 +81,18 @@ UINT_32
 nicGetHwRateByPhyRate(
 	IN UINT_8 ucIdx
 	);
-
 WLAN_STATUS
 nicSwIndex2RateIndex(
 	IN UINT_8 ucRateSwIndex,
 	OUT PUINT_8 pucRateIndex,
 	OUT PUINT_8 pucPreambleOption
 	);
-
 WLAN_STATUS
 nicRateIndex2RateCode(
 	IN UINT_8 ucPreambleOption,
 	IN UINT_8 ucRateIndex,
 	OUT PUINT_16 pu2RateCode
 	);
-
 UINT_32
 nicRateCode2PhyRate(
 	IN UINT_16 u2RateCode,
@@ -103,14 +100,12 @@ nicRateCode2PhyRate(
 	IN UINT_8 ucGI,
 	IN UINT_8 ucRateNss
 	);
-
 UINT_32
 nicRateCode2DataRate(
 	IN UINT_16 u2RateCode,
 	IN UINT_8 ucBandwidth,
 	IN UINT_8 ucGI
 	);
-
 BOOLEAN
 nicGetRateIndexFromRateSetWithLimit(
 	IN UINT_16 u2RateSet,
@@ -118,5 +113,4 @@ nicGetRateIndexFromRateSetWithLimit(
 	IN BOOLEAN fgGetLowest,
 	OUT PUINT_8 pucRateSwIndex
 	);
-
 #endif /* _NIC_RATE_H */

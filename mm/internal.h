@@ -22,8 +22,7 @@
  */
 #define GFP_RECLAIM_MASK (__GFP_RECLAIM|__GFP_HIGH|__GFP_IO|__GFP_FS|\
 			__GFP_NOWARN|__GFP_REPEAT|__GFP_NOFAIL|\
-			__GFP_NORETRY|__GFP_MEMALLOC|__GFP_NOMEMALLOC|\
-			__GFP_ATOMIC)
+			__GFP_NORETRY|__GFP_MEMALLOC|__GFP_NOMEMALLOC)
 
 /* The GFP flags allowed during early boot */
 #define GFP_BOOT_MASK (__GFP_BITS_MASK & ~(__GFP_RECLAIM|__GFP_IO|__GFP_FS))
@@ -183,19 +182,6 @@ extern void prep_compound_page(struct page *page, unsigned int order);
 extern bool is_free_buddy_page(struct page *page);
 #endif
 extern int user_min_free_kbytes;
-
-#ifdef CONFIG_CMA
-static inline int is_cma_page(struct page *page)
-{
-	unsigned mt = get_pageblock_migratetype(page);
-
-	if (mt == MIGRATE_ISOLATE || mt == MIGRATE_CMA)
-		return true;
-	return false;
-}
-#else
-#define is_cma_page(page) 0
-#endif
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 
@@ -466,7 +452,6 @@ struct tlbflush_unmap_batch;
 #ifdef CONFIG_ARCH_WANT_BATCHED_UNMAP_TLB_FLUSH
 void try_to_unmap_flush(void);
 void try_to_unmap_flush_dirty(void);
-void flush_tlb_batched_pending(struct mm_struct *mm);
 #else
 static inline void try_to_unmap_flush(void)
 {
@@ -474,18 +459,6 @@ static inline void try_to_unmap_flush(void)
 static inline void try_to_unmap_flush_dirty(void)
 {
 }
-static inline void flush_tlb_batched_pending(struct mm_struct *mm)
-{
-}
+
 #endif /* CONFIG_ARCH_WANT_BATCHED_UNMAP_TLB_FLUSH */
-
-#ifdef CONFIG_MTK_ION
-extern void ion_mm_heap_memory_detail(void);
-#endif
-#ifdef CONFIG_MTK_GPU_SUPPORT
-extern bool mtk_dump_gpu_memory_usage(void);
-#endif
-
-#define IS_ZONE_MOVABLE_CMA_ZONE(z)	IS_ZONE_MOVABLE_CMA_ZONE_IDX(zone_idx(z))
-
 #endif	/* __MM_INTERNAL_H */

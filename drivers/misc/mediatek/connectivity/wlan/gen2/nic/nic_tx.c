@@ -19,7 +19,6 @@
 ********************************************************************************
 */
 #include "precomp.h"
-#include "tdls.h"
 
 /*******************************************************************************
 *                              C O N S T A N T S
@@ -207,9 +206,8 @@ WLAN_STATUS nicTxAcquireResource(IN P_ADAPTER_T prAdapter, IN UINT_8 ucTC, IN BO
 
 			fgWmtCoreDump = glIsWmtCodeDump();
 			if (fgWmtCoreDump == FALSE) {
-				DBGLOG(TX, WARN,
-					"[TC4 no resource delay 5s!] Trigger Coredump\n");
-				GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP | RST_FLAG_PREVENT_POWER_OFF);
+				kalSendAeeWarning("[TC4 no resource delay 5s!]", __func__);
+				glDoChipReset();
 			} else
 				DBGLOG(TX, WARN,
 					"[TC4 no resource delay 5s!] WMT is code dumping! STOP AEE & chip reset\n");
@@ -1105,7 +1103,7 @@ WLAN_STATUS nicTxMsduQueue(IN P_ADAPTER_T prAdapter, UINT_8 ucPortIdx, P_QUE_T p
 
 			/* record the queue time in driver */
 			STATS_TX_TIME_TO_HIF(prMsduInfo, &rHwTxHeader);
-			wlanFillTimestamp(prAdapter, prMsduInfo->prPacket, PHASE_HIF_TX);
+
 #if CFG_SDIO_TX_AGG
 			/* attach to coalescing buffer */
 			kalMemCopy(pucOutputBuf + u4TotalLength, &rHwTxHeader, u4TxHdrSize);
@@ -1390,8 +1388,6 @@ WLAN_STATUS nicTxCmd(IN P_ADAPTER_T prAdapter, IN P_CMD_INFO_T prCmdInfo, IN UIN
 
 		}
 	}
-	prCmdInfo->u4SendToFwTime = kalGetTimeTick();
-	wlanDebugCommandRecodTime(prCmdInfo);
 
 	/* <4> Write frame to data port */
 	HAL_WRITE_TX_PORT(prAdapter,
@@ -1631,18 +1627,12 @@ BOOLEAN nicTxFillMsduInfo(IN P_ADAPTER_T prAdapter, IN P_MSDU_INFO_T prMsduInfo,
 					       aucEthDestAddr,
 					       &fgIs1x, &fgIsPAL, &ucNetworkType,
 					       NULL) == FALSE) {
-		DBGLOG(TX, WARN, "%s kalQoSFrameClassifierAndPacketInfo is false!\n", __func__);
 		return FALSE;
 	}
 #if CFG_ENABLE_PKT_LIFETIME_PROFILE
 	nicTxLifetimeCheck(prAdapter, prMsduInfo, prPacket, ucPriorityParam, u4PacketLen, ucNetworkType);
 #endif
 
-#if (CFG_SUPPORT_TDLS == 1)
-	if (ucNetworkType == NETWORK_TYPE_P2P_INDEX &&
-	    MTKTdlsEnvP2P(prAdapter))
-		MTKAutoTdlsP2P(prGlueInfo, prPacket);
-#endif
 	/* Save the value of Priority Parameter */
 	GLUE_SET_PKT_TID(prPacket, ucPriorityParam);
 

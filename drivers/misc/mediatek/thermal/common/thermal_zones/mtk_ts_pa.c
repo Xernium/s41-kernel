@@ -43,10 +43,9 @@
 #include <linux/timer.h>
 #endif
 
+static DEFINE_MUTEX(ts_pa_timer_lock);
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
-static DEFINE_SEMAPHORE(sem_mutex);
-static int isTimerCancelled;
 
 static unsigned int interval;	/* seconds, 0 : no auto polling */
 static unsigned int trip_temp[10] = { 85000, 80000, 70000, 60000, 50000, 40000, 30000, 20000, 10000, 5000 };
@@ -120,11 +119,6 @@ static unsigned long get_tx_bytes(void)
 	}
 	read_unlock(&dev_base_lock);
 	return tx_bytes;
-}
-
-int tspa_get_MD_tx_tput(void)
-{
-	return tx_throughput;
 }
 
 static int pa_cal_stats(unsigned long data)
@@ -395,7 +389,6 @@ static int tspa_sysrst_get_cur_state(struct thermal_cooling_device *cdev, unsign
 
 static int tspa_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
 {
-
 	cl_dev_sysrst_state = state;
 	if (cl_dev_sysrst_state == 1) {
 		pr_debug("Power/PA_Thermal: reset, reset, reset!!!");
@@ -403,8 +396,8 @@ static int tspa_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsign
 		pr_debug("*****************************************");
 		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
-		/* To trigger data abort to reset the system for thermal protection. */
-		*(unsigned int *)0x0 = 0xdead;
+
+		*(unsigned int *)0x0 = 0xdead;	/* To trigger data abort to reset the system for thermal protection. */
 	}
 	return 0;
 }
@@ -481,7 +474,6 @@ static ssize_t mtktspa_write(struct file *file, const char __user *buffer, size_
 	     &ptr_mtktspa_data->trip[8], &ptr_mtktspa_data->t_type[8], ptr_mtktspa_data->bind8,
 	     &ptr_mtktspa_data->trip[9], &ptr_mtktspa_data->t_type[9], ptr_mtktspa_data->bind9,
 	     &ptr_mtktspa_data->time_msec) == 32) {
-		down(&sem_mutex);
 		mtktspa_dprintk("[mtktspa_write] mtktspa_unregister_thermal\n");
 		mtktspa_unregister_thermal();
 
@@ -492,7 +484,6 @@ static ssize_t mtktspa_write(struct file *file, const char __user *buffer, size_
 			#endif
 			mtktspa_dprintk("[mtktspa_write] bad argument\n");
 			kfree(ptr_mtktspa_data);
-			up(&sem_mutex);
 			return -EINVAL;
 		}
 
@@ -541,7 +532,6 @@ static ssize_t mtktspa_write(struct file *file, const char __user *buffer, size_
 
 		mtktspa_dprintk("[mtktspa_write] mtktspa_register_thermal\n");
 		mtktspa_register_thermal();
-		up(&sem_mutex);
 
 		kfree(ptr_mtktspa_data);
 		return count;
@@ -599,15 +589,12 @@ static void mtkts_pa_cancel_thermal_timer(void)
 	/* pr_debug("mtkts_pa_cancel_thermal_timer\n"); */
 
 	/* stop thermal framework polling when entering deep idle */
-	if (down_trylock(&sem_mutex))
-		return;
+	if (mutex_trylock(&ts_pa_timer_lock)) {
+		if (thz_dev)
+			cancel_delayed_work(&(thz_dev->poll_queue));
 
-	if (thz_dev) {
-		cancel_delayed_work(&(thz_dev->poll_queue));
-		isTimerCancelled = 1;
+		mutex_unlock(&ts_pa_timer_lock);
 	}
-
-	up(&sem_mutex);
 }
 
 
@@ -615,20 +602,13 @@ static void mtkts_pa_start_thermal_timer(void)
 {
 	/* pr_debug("mtkts_pa_start_thermal_timer\n"); */
 	/* resume thermal framework polling when leaving deep idle */
+	if (mutex_trylock(&ts_pa_timer_lock)) {
+		if (thz_dev != NULL && interval != 0)
+			mod_delayed_work(system_freezable_wq, &(thz_dev->poll_queue),
+				round_jiffies(msecs_to_jiffies(3000)));
 
-	if (!isTimerCancelled)
-		return;
-
-	isTimerCancelled = 0;
-
-	if (down_trylock(&sem_mutex))
-		return;
-
-	if (thz_dev != NULL && interval != 0)
-		mod_delayed_work(system_freezable_power_efficient_wq,
-				&(thz_dev->poll_queue), round_jiffies(msecs_to_jiffies(3000)));
-
-	up(&sem_mutex);
+		mutex_unlock(&ts_pa_timer_lock);
+	}
 }
 
 
@@ -645,10 +625,12 @@ static int mtktspa_register_thermal(void)
 	mtktspa_dprintk("[mtktspa_register_thermal]\n");
 
 	/* trips */
+	mutex_lock(&ts_pa_timer_lock);
 	thz_dev = mtk_thermal_zone_device_register("mtktspa", num_trip, NULL,
 						   &mtktspa_dev_ops, 0, 0, 0, interval * 1000);
 
 	mtk_mdm_set_md1_signal_period(interval);
+	mutex_unlock(&ts_pa_timer_lock);
 
 	return 0;
 }
@@ -665,10 +647,12 @@ static void mtktspa_unregister_thermal(void)
 {
 	mtktspa_dprintk("[mtktspa_unregister_thermal]\n");
 
+	mutex_lock(&ts_pa_timer_lock);
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
 		thz_dev = NULL;
 	}
+	mutex_unlock(&ts_pa_timer_lock);
 }
 
 static int __init mtktspa_init(void)

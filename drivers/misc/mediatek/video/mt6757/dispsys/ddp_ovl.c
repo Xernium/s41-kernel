@@ -20,7 +20,6 @@
 #endif
 #include "m4u_port.h"
 #include <linux/delay.h>
-#include <linux/bug.h>
 #include "ddp_info.h"
 #include "ddp_hal.h"
 #include "ddp_reg.h"
@@ -29,7 +28,6 @@
 #include "disp_rect.h"
 #include "disp_assert_layer.h"
 #include "ddp_mmp.h"
-#include "disp_drv_platform.h"
 
 #define OVL_REG_BACK_MAX          (40)
 #define OVL_LAYER_OFFSET        (0x20)
@@ -391,18 +389,6 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module,
 	input_fmt = ufmt_get_format(format);
 	is_rgb = ufmt_get_rgb(format);
 
-	if (rotate) {
-		unsigned int bg_h, bg_w;
-
-		bg_h = DISP_REG_GET(ovl_base + DISP_REG_OVL_ROI_SIZE);
-		bg_w = bg_h & 0xFFFF;
-		bg_h = bg_h >> 16;
-		DISP_REG_SET(handle, DISP_REG_OVL_L0_OFFSET + layer_offset,
-			     ((bg_h - dst_h - dst_y) << 16) | (bg_w - dst_w - dst_x));
-	} else {
-		DISP_REG_SET(handle, DISP_REG_OVL_L0_OFFSET + layer_offset, (dst_y << 16) | dst_x);
-	}
-
 	if (format == UFMT_UYVY || format == UFMT_VYUY ||
 	    format == UFMT_YUYV || format == UFMT_YVYU) {
 		unsigned int regval = 0;
@@ -465,10 +451,23 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module,
 
 	DISP_REG_SET(handle, DISP_REG_OVL_L0_SRC_SIZE + layer_offset, dst_h << 16 | dst_w);
 
-	if (rotate)
+	if (rotate) {
+		unsigned int bg_h, bg_w;
+
+		bg_h = DISP_REG_GET(ovl_base + DISP_REG_OVL_ROI_SIZE);
+		bg_w = bg_h & 0xFFFF;
+		bg_h = bg_h >> 16;
+		DISP_REG_SET(handle, DISP_REG_OVL_L0_OFFSET + layer_offset,
+			     ((bg_h - dst_h - dst_y) << 16) | (bg_w - dst_w - dst_x));
+		DISP_REG_SET(handle, DISP_REG_OVL_L0_ADDR + layer_offset_addr,
+			     cfg->addr + cfg->src_pitch * (dst_h + src_y - 1) + (src_x + dst_w) * Bpp - 1);
 		offset = (src_x + dst_w) * Bpp + (src_y + dst_h - 1) * cfg->src_pitch - 1;
-	else
+	} else {
+		DISP_REG_SET(handle, DISP_REG_OVL_L0_OFFSET + layer_offset, (dst_y << 16) | dst_x);
+		DISP_REG_SET(handle, DISP_REG_OVL_L0_ADDR + layer_offset_addr,
+			cfg->addr + src_x * Bpp + src_y * cfg->src_pitch);
 		offset = src_x * Bpp + src_y * cfg->src_pitch;
+	}
 
 	if (!is_engine_sec) {
 		DISP_REG_SET(handle, DISP_REG_OVL_L0_ADDR + layer_offset_addr, cfg->addr + offset);
@@ -496,21 +495,15 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module,
 	}
 	DISP_REG_SET(handle, DISP_REG_OVL_L0_SRCKEY + layer_offset, cfg->key);
 
-	value = REG_FLD_VAL(L_PITCH_FLD_SA_SEL, cfg->src_alpha & 0x3) |
-			REG_FLD_VAL(L_PITCH_FLD_SRGB_SEL, cfg->src_alpha & 0x3) |
-			REG_FLD_VAL(L_PITCH_FLD_DA_SEL, cfg->dst_alpha & 0x3) |
-			REG_FLD_VAL(L_PITCH_FLD_DRGB_SEL, cfg->dst_alpha & 0x3) |
-			REG_FLD_VAL(L_PITCH_FLD_SURFL_EN, cfg->src_alpha & 0x1) |
-			REG_FLD_VAL(L_PITCH_FLD_SRC_PITCH, cfg->src_pitch);
+	value = (((cfg->sur_aen & 0x1) << 15) |
+		 ((cfg->dst_alpha & 0x3) << 6) | ((cfg->dst_alpha & 0x3) << 4) |
+		 ((cfg->src_alpha & 0x3) << 2) | (cfg->src_alpha & 0x3));
 
-	if (format == UFMT_RGBA4444) {
-		value |= REG_FLD_VAL(L_PITCH_FLD_SRGB_SEL, (1)) |
-			REG_FLD_VAL(L_PITCH_FLD_DRGB_SEL, (2)) |
-			REG_FLD_VAL(L_PITCH_FLD_SURFL_EN, (1));
-	}
+	value = (REG_FLD_VAL((L_PITCH_FLD_SUR_ALFA), (value)) |
+		 REG_FLD_VAL((L_PITCH_FLD_LSP), (cfg->src_pitch)));
 
 	if (cfg->const_bld)
-		value |= REG_FLD_VAL((L_PITCH_FLD_CONST_BLD), (1));
+		value = value | REG_FLD_VAL((L_PITCH_FLD_CONST_BLD), (1));
 	DISP_REG_SET(handle, DISP_REG_OVL_L0_PITCH + layer_offset, value);
 
 	return 0;
@@ -867,10 +860,10 @@ static inline int ovl_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 	/* cmdqRecSecureEnableDAPC(handle, (1LL << cmdq_engine)); */
 	if (ovl_is_sec[ovl_idx] == 0) {
 		DDPSVPMSG("[SVP] switch ovl%d to sec\n", ovl_idx);
-		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-			MMPROFILE_FLAG_START, 0, 0);
-		/*mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-		 *	MMPROFILE_FLAG_PULSE, ovl_idx, 1);
+		MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+			MMProfileFlagStart, 0, 0);
+		/*MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+		 *	MMProfileFlagPulse, ovl_idx, 1);
 		 */
 	}
 	ovl_is_sec[ovl_idx] = 1;
@@ -937,10 +930,10 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 
 		cmdqRecDestroy(nonsec_switch_handle);
 		DDPSVPMSG("[SVP] switch ovl%d to nonsec\n", ovl_idx);
-		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-			MMPROFILE_FLAG_END, 0, 0);
-		/*mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-		 *MMPROFILE_FLAG_PULSE, ovl_idx, 0);
+		MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+			MMProfileFlagEnd, 0, 0);
+		/*MMProfileLogEx(ddp_mmp_get_events()->svp_module[module],
+		 *MMProfileFlagPulse, ovl_idx, 0);
 		 */
 	}
 	ovl_is_sec[ovl_idx] = 0;
@@ -988,7 +981,6 @@ static int ovl_layer_layout(enum DISP_MODULE_ENUM module, struct disp_ddp_path_c
 	int ovl_idx = module;
 	int phy_layer = -1, ext_layer = -1, ext_layer_idx = 0;
 
-	BUILD_BUG_ON(PRIMARY_SESSION_INPUT_LAYER_COUNT > TOTAL_OVL_LAYER_NUM);
 	/* 1. check if it has been prepared, just only prepare once for each frame */
 #if 0
 	for (global_layer = 0; global_layer < TOTAL_OVL_LAYER_NUM; global_layer++) {
@@ -1002,7 +994,7 @@ static int ovl_layer_layout(enum DISP_MODULE_ENUM module, struct disp_ddp_path_c
 		return 0;
 #endif
 	/* 2. prepare layer layout */
-	for (local_layer = 0; global_layer < PRIMARY_SESSION_INPUT_LAYER_COUNT; local_layer++, global_layer++) {
+	for (local_layer = 0; global_layer < TOTAL_OVL_LAYER_NUM; local_layer++, global_layer++) {
 		struct OVL_CONFIG_STRUCT *ovl_cfg = &pConfig->ovl_config[global_layer];
 
 		ext_layer = -1;
@@ -1023,9 +1015,6 @@ static int ovl_layer_layout(enum DISP_MODULE_ENUM module, struct disp_ddp_path_c
 		if (is_DAL_Enabled() && ovl_cfg->layer == primary_display_get_option("ASSERT_LAYER")) {
 			ovl_cfg->ovl_index = DISP_MODULE_OVL0_2L;
 			ovl_cfg->phy_layer = ovl_layer_num(DISP_MODULE_OVL0_2L) - 1;
-#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
-			ovl_cfg->phy_layer--;
-#endif
 			continue;
 		}
 
@@ -1102,7 +1091,7 @@ static int ovl_config_l(enum DISP_MODULE_ENUM module, struct disp_ddp_path_confi
 	has_sec_layer = setup_ovl_sec(module, pConfig, handle);
 #endif
 
-	for (layer_id = 0; layer_id < TOTAL_REAL_OVL_LAYER_NUM; layer_id++) {
+	for (layer_id = 0; layer_id < TOTAL_OVL_LAYER_NUM; layer_id++) {
 		struct OVL_CONFIG_STRUCT *ovl_cfg = &pConfig->ovl_config[layer_id];
 		int enable = ovl_cfg->layer_en;
 

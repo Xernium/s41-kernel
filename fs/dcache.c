@@ -269,33 +269,6 @@ static inline int dname_external(const struct dentry *dentry)
 	return dentry->d_name.name != dentry->d_iname;
 }
 
-void take_dentry_name_snapshot(struct name_snapshot *name, struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	if (unlikely(dname_external(dentry))) {
-		struct external_name *p = external_name(dentry);
-		atomic_inc(&p->u.count);
-		spin_unlock(&dentry->d_lock);
-		name->name = p->name;
-	} else {
-		memcpy(name->inline_name, dentry->d_iname, DNAME_INLINE_LEN);
-		spin_unlock(&dentry->d_lock);
-		name->name = name->inline_name;
-	}
-}
-EXPORT_SYMBOL(take_dentry_name_snapshot);
-
-void release_dentry_name_snapshot(struct name_snapshot *name)
-{
-	if (unlikely(name->name != name->inline_name)) {
-		struct external_name *p;
-		p = container_of(name->name, struct external_name, name[0]);
-		if (unlikely(atomic_dec_and_test(&p->u.count)))
-			kfree_rcu(p, u.head);
-	}
-}
-EXPORT_SYMBOL(release_dentry_name_snapshot);
-
 static inline void __d_set_inode_and_type(struct dentry *dentry,
 					  struct inode *inode,
 					  unsigned type_flags)
@@ -605,6 +578,7 @@ static struct dentry *dentry_kill(struct dentry *dentry)
 
 failed:
 	spin_unlock(&dentry->d_lock);
+	cpu_relax();
 	return dentry; /* try again with same dentry */
 }
 
@@ -778,8 +752,6 @@ void dput(struct dentry *dentry)
 		return;
 
 repeat:
-	might_sleep();
-
 	rcu_read_lock();
 	if (likely(fast_dput(dentry))) {
 		rcu_read_unlock();
@@ -811,10 +783,8 @@ repeat:
 
 kill_it:
 	dentry = dentry_kill(dentry);
-	if (dentry) {
-		cond_resched();
+	if (dentry)
 		goto repeat;
-	}
 }
 EXPORT_SYMBOL(dput);
 
@@ -1155,12 +1125,11 @@ void shrink_dcache_sb(struct super_block *sb)
 		LIST_HEAD(dispose);
 
 		freed = list_lru_walk(&sb->s_dentry_lru,
-			dentry_lru_isolate_shrink, &dispose, 1024);
+			dentry_lru_isolate_shrink, &dispose, UINT_MAX);
 
 		this_cpu_sub(nr_dentry_unused, freed);
 		shrink_dentry_list(&dispose);
-		cond_resched();
-	} while (list_lru_count(&sb->s_dentry_lru) > 0);
+	} while (freed > 0);
 }
 EXPORT_SYMBOL(shrink_dcache_sb);
 
@@ -1350,11 +1319,8 @@ int d_set_mounted(struct dentry *dentry)
 	}
 	spin_lock(&dentry->d_lock);
 	if (!d_unlinked(dentry)) {
-		ret = -EBUSY;
-		if (!d_mountpoint(dentry)) {
-			dentry->d_flags |= DCACHE_MOUNTED;
-			ret = 0;
-		}
+		dentry->d_flags |= DCACHE_MOUNTED;
+		ret = 0;
 	}
  	spin_unlock(&dentry->d_lock);
 out:
@@ -1508,7 +1474,7 @@ static void check_and_drop(void *_data)
 {
 	struct detach_data *data = _data;
 
-	if (!data->mountpoint && list_empty(&data->select.dispose))
+	if (!data->mountpoint && !data->select.found)
 		__d_drop(data->select.start);
 }
 
@@ -1550,15 +1516,17 @@ void d_invalidate(struct dentry *dentry)
 
 		d_walk(dentry, &data, detach_and_collect, check_and_drop);
 
-		if (!list_empty(&data.select.dispose))
+		if (data.select.found)
 			shrink_dentry_list(&data.select.dispose);
-		else if (!data.mountpoint)
-			return;
 
 		if (data.mountpoint) {
 			detach_mounts(data.mountpoint);
 			dput(data.mountpoint);
 		}
+
+		if (!data.mountpoint && !data.select.found)
+			break;
+
 		cond_resched();
 	}
 }

@@ -62,6 +62,7 @@
 #define TA_9V_SUPPORT
 #define TA_12V_SUPPORT
 
+
 /* pe2.0 */
 #define PE20_ICHG_LEAVE_THRESHOLD 1000 /* mA */
 #define TA_START_BATTERY_SOC	0

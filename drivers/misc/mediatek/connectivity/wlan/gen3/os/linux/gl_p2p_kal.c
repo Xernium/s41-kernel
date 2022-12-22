@@ -897,7 +897,7 @@ VOID kalP2PIndicateScanDone(IN P_GLUE_INFO_T prGlueInfo, IN UINT_8 ucRoleIndex, 
 			ASSERT(FALSE);
 			break;
 		}
-		DBGLOG(P2P, TRACE, "scan complete, cfg80211 scan request is %p\n", prGlueP2pInfo->prScanRequest);
+		DBGLOG(P2P, INFO, "scan complete, cfg80211 scan request is %p\n", prGlueInfo->prScanRequest);
 
 		GLUE_ACQUIRE_SPIN_LOCK(prGlueInfo, SPIN_LOCK_NET_DEV);
 
@@ -910,8 +910,10 @@ VOID kalP2PIndicateScanDone(IN P_GLUE_INFO_T prGlueInfo, IN UINT_8 ucRoleIndex, 
 
 		if (prScanRequest != NULL) {
 			/* report all queued beacon/probe response frames  to upper layer */
-			scanReportBss2Cfg80211(prGlueInfo->prAdapter, BSS_TYPE_P2P_DEVICE, NULL);
-
+			/*
+			 * do not indicate again for getting last scan results
+			 * scanReportBss2Cfg80211(prGlueInfo->prAdapter, BSS_TYPE_P2P_DEVICE, NULL);
+			 */
 			cfg80211_scan_done(prScanRequest, fgIsAbort);
 		}
 
@@ -945,7 +947,7 @@ kalP2PIndicateBssInfo(IN P_GLUE_INFO_T prGlueInfo,
 		prChannelEntry = kalP2pFuncGetChannelEntry(prGlueP2pInfo, prChannelInfo);
 
 		if (prChannelEntry == NULL) {
-			DBGLOG(P2P, WARN, "Unknown channel info\n");
+			DBGLOG(P2P, TRACE, "Unknown channel info\n");
 			break;
 		}
 
@@ -960,10 +962,7 @@ kalP2PIndicateBssInfo(IN P_GLUE_INFO_T prGlueInfo,
 			break;
 		}
 		/* Return this structure. */
-		if (prCfg80211Bss)
-			cfg80211_put_bss(prGlueP2pInfo->prWdev->wiphy, prCfg80211Bss);
-		else
-			DBGLOG(P2P, WARN, "Indicate bss to cfg80211 failed\n");
+		cfg80211_put_bss(prGlueP2pInfo->prWdev->wiphy, prCfg80211Bss);
 
 	} while (FALSE);
 

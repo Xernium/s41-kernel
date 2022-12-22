@@ -307,12 +307,11 @@ struct _BSS_DESC_T {
 	ULARGE_INTEGER u8TimeStamp;	/* Place u8TimeStamp before aucIEBuf[1] to force DW align */
 	UINT_8 aucRawBuf[CFG_RAW_BUFFER_SIZE];
 	UINT_8 aucIEBuf[CFG_IE_BUFFER_SIZE];
-	UINT_8 ucJoinFailureCount;
-	UINT_16 u2JoinStatus;
 	OS_SYSTIME rJoinFailTime;
 	struct AIS_BLACKLIST_ITEM *prBlack;
 	UINT_16 u2StaCnt;
 	UINT_16 u2AvaliableAC; /* Available Admission Capacity */
+	UINT_8 ucJoinFailureCount;
 	UINT_8 ucChnlUtilization;
 	UINT_8 ucSNR;
 	BOOLEAN fgSeenProbeResp;
@@ -379,9 +378,7 @@ typedef struct _SCAN_PARAM_T {	/* Used by SCAN FSM */
 } SCAN_PARAM_T, *P_SCAN_PARAM_T;
 
 typedef struct _NLO_PARAM_T {	/* Used by SCAN FSM */
-	UINT_8 ucSeqNum;
-	/* Network Type */
-	UINT_8 ucBssIndex;
+	SCAN_PARAM_T rScanParam;
 
 	/* NLO */
 	BOOLEAN fgStopAfterIndication;
@@ -389,10 +386,7 @@ typedef struct _NLO_PARAM_T {	/* Used by SCAN FSM */
 	UINT_16 u2FastScanPeriod;
 	UINT_16 u2SlowScanPeriod;
 
-	/* Hidden SSID, Match Set SSID */
-#if CFG_SUPPORT_SCHED_SCN_SSID_SETS
-	UINT_8 ucSSIDNum;
-#endif
+	/* Match SSID */
 	UINT_8 ucMatchSSIDNum;
 	struct NLO_NETWORK rNLONetwork;
 	P_BSS_DESC_T aprPendingBssDescToInd[SCN_SSID_MATCH_MAX_NUM];
@@ -711,7 +705,9 @@ BOOLEAN scnQuerySparseChannel(IN P_ADAPTER_T prAdapter, P_ENUM_BAND_T prSparseBa
 /*----------------------------------------------------------------------------*/
 BOOLEAN
 scnFsmSchedScanRequest(IN P_ADAPTER_T prAdapter,
-		       IN P_PARAM_SCHED_SCAN_REQUEST prSchedScanRequest);
+		       IN UINT_8 ucSsidNum,
+		       IN P_PARAM_SSID_T prSsid, PINT_8 pcRssiThresold, IN UINT_32 u4IeLength, IN PUINT_8 pucIe,
+		       IN UINT_16 u2Interval, UINT_8 ucChnlNum, PUINT_8 pucChannels);
 
 BOOLEAN scnFsmSchedScanStopRequest(IN P_ADAPTER_T prAdapter);
 

@@ -446,9 +446,6 @@ static ssize_t vcore_debug_store(struct kobject *kobj, struct kobj_attribute *at
 			krconf.opp = kicker_table[KIR_SYSFS];
 			krconf.dvfs_opp = opp;
 
-			vcorefs_crit("kicker: %d, opp: %d, dvfs_opp: %d, curr_opp: %d\n",
-					krconf.kicker, krconf.opp, krconf.dvfs_opp, vcorefs_get_sw_opp());
-
 			/*
 			 * r = 0: DVFS completed
 			 *
@@ -480,9 +477,6 @@ static ssize_t vcore_debug_store(struct kobject *kobj, struct kobj_attribute *at
 		krconf.dvfs_opp = val;
 
 		kicker_table[KIR_SYSFSX] = val;
-
-		vcorefs_crit("kicker: %d, opp: %d, dvfs_opp: %d, curr_opp: %d\n",
-				krconf.kicker, krconf.opp, krconf.dvfs_opp, vcorefs_get_sw_opp());
 
 		/*
 		 * r = 0: DVFS completed

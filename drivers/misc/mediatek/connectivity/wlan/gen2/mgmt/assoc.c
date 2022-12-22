@@ -35,10 +35,6 @@
 ********************************************************************************
 */
 APPEND_VAR_IE_ENTRY_T txAssocReqIETable[] = {
-#if CFG_SUPPORT_802_11K
-	{(ELEM_HDR_LEN + 2), NULL, rlmGerneratePowerCapIE}, /* Element ID: 33 */
-#endif
-
 	{(ELEM_HDR_LEN + ELEM_MAX_LEN_HT_CAP), NULL, rlmReqGenerateHtCapIE}
 	,			/* 45 */
 #if CFG_SUPPORT_WPS2
@@ -59,6 +55,7 @@ APPEND_VAR_IE_ENTRY_T txAssocReqIETable[] = {
 #if CFG_SUPPORT_802_11K
 	{(ELEM_HDR_LEN + 5), NULL, rlmGernerateRRMEnabledCapIE}, /* Element ID: 70 */
 #endif
+
 #if CFG_SUPPORT_HOTSPOT_2_0
 	{(ELEM_HDR_LEN + ELEM_MAX_LEN_INTERWORKING), NULL, hs20GenerateInterworkingIE}
 	,			/* 107 */
@@ -156,10 +153,6 @@ assocBuildCapabilityInfo(IN P_ADAPTER_T prAdapter, IN P_STA_RECORD_T prStaRec)
 	/* Set up our requested capabilities. */
 	u2CapInfo = CAP_INFO_ESS;
 	u2CapInfo |= CAP_CF_STA_NOT_POLLABLE;
-#if CFG_SUPPORT_802_11K
-	u2CapInfo |= CAP_INFO_RADIO_MEASUREMENT;
-#endif
-
 	if (prStaRec == NULL)
 		u2CapInfo |= CAP_INFO_PRIVACY;
 	else {
@@ -305,7 +298,7 @@ static inline VOID assocBuildReAssocReqFrameCommonIEs(IN P_ADAPTER_T prAdapter, 
 	/* rateGetDataRatesFromRateSet((prBssDesc->u2OperationalRateSet & */
 	/* rPhyAttributes[prBssDesc->ePhyType].u2SupportedRateSet), */
 
-	if (prStaRec->ucDesiredPhyTypeSet) {
+	if (prStaRec->fgHasBasicPhyType) {
 		UINT_32 u4NonHTPhyType;
 
 		u4NonHTPhyType = prStaRec->ucNonHTBasicPhyType;
@@ -1214,8 +1207,7 @@ WLAN_STATUS assocProcessRxAssocReqFrame(IN P_ADAPTER_T prAdapter, IN P_SW_RFB_T 
 		default:
 			for (i = 0; i < (sizeof(rxAssocReqIETable) / sizeof(VERIFY_IE_ENTRY_T)); i++) {
 
-				if (((IE_ID(pucIE)) == rxAssocReqIETable[i].ucElemID) &&
-				    (rxAssocReqIETable[i].pfnVarifyIE != NULL)) {
+				if ((IE_ID(pucIE)) == rxAssocReqIETable[i].ucElemID) {
 					rxAssocReqIETable[i].pfnVarifyIE(prAdapter, prSwRfb, (P_IE_HDR_T) pucIE,
 									 &u2StatusCode);
 
@@ -1605,4 +1597,3 @@ VOID assocGenerateMDIE(IN P_ADAPTER_T prAdapter, IN OUT P_MSDU_INFO_T prMsduInfo
 	prMsduInfo->u2FrameLength += 5; /* IE size for MD IE is fixed, it is 5 */
 	kalMemCopy(pucBuffer, prFtIEs->prMDIE, 5);
 }
-

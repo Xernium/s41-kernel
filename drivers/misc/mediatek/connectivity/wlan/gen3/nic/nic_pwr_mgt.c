@@ -121,36 +121,19 @@ VOID nicpmSetFWOwn(IN P_ADAPTER_T prAdapter, IN BOOLEAN fgEnableGlobalInt)
 	}
 
 	prAdapter->fgIsFwOwn = TRUE;
-	DBGLOG(NIC, TRACE, "FW OWN\n");
+	DBGLOG(NIC, INFO, "FW OWN\n");
 }
 
-VOID nicpmCheckAndTriggerDriverOwn(IN P_ADAPTER_T prAdapter)
+VOID nicPmTriggerDriverOwn(IN P_ADAPTER_T prAdapter)
 {
 	UINT_32 u4RegValue = 0;
 
 	HAL_MCR_RD(prAdapter, MCR_WHLPCR, &u4RegValue);
 
-	if (u4RegValue & WHLPCR_FW_OWN_REQ_SET) {
-		/* WLAN_DRV_OWN is asserted on initial stage, but chip WLAN function is FW_OWN state actually,
-		 * this is an issue due to HIF un-sync reset.
-		 *
-		 * Trigger FW_OWN to let HIF clear WLAN_DRV_OWN bit and make power state synchronized.
-		 * F/W should remember to clear the residual bit in HWFISR.DRV_SET_FW_OWN.
-		 */
-		DBGLOG(NIC, WARN, "DRIVER OWN already set on initial stage!! trigger FW OWN to sync power state\n");
-		HAL_MCR_WR(prAdapter, MCR_WHLPCR, WHLPCR_FW_OWN_REQ_SET);
-
-		HAL_MCR_RD(prAdapter, MCR_WHLPCR, &u4RegValue);
-		if (u4RegValue & WHLPCR_FW_OWN_REQ_SET) {
-			/* Impossible case, H/W will clear WLAN_DRV_OWN bit immediately after
-			 * WHLPCR.FW_OWN_REQ_SET is set
-			 */
-			DBGLOG(NIC, ERROR, "FW OWN fail, anyway continue to trigger DRIVER OWN\n");
-		}
-	}
-
-	prAdapter->fgIsFwOwn = TRUE;
-	HAL_MCR_WR(prAdapter, MCR_WHLPCR, WHLPCR_FW_OWN_REQ_CLR);
+	if (u4RegValue & WHLPCR_FW_OWN_REQ_SET)
+		prAdapter->fgIsFwOwn = FALSE;
+	else
+		HAL_MCR_WR(prAdapter, MCR_WHLPCR, WHLPCR_FW_OWN_REQ_CLR);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -165,12 +148,11 @@ VOID nicpmCheckAndTriggerDriverOwn(IN P_ADAPTER_T prAdapter)
 BOOLEAN nicpmSetDriverOwn(IN P_ADAPTER_T prAdapter)
 {
 #define LP_OWN_BACK_TOTAL_DELAY_MS      2048	/* exponential of 2 */
+#define LP_OWN_BACK_LOOP_DELAY_MS       1	/* exponential of 2 */
 #define LP_OWN_BACK_CLR_OWN_ITERATION   256	/* exponential of 2 */
 #define LP_OWN_BACK_FAILED_RETRY_CNT    5
 #define LP_OWN_BACK_FAILED_LOG_SKIP_MS  2000
 #define LP_OWN_BACK_FAILED_RESET_CNT    5
-#define LP_OWN_BACK_LOOP_DELAY_MIN_US   900
-#define LP_OWN_BACK_LOOP_DELAY_MAX_US   1000
 
 	BOOLEAN fgStatus = TRUE;
 	UINT_32 i, u4CurrTick, u4RegValue = 0;
@@ -181,7 +163,7 @@ BOOLEAN nicpmSetDriverOwn(IN P_ADAPTER_T prAdapter)
 	if (prAdapter->fgIsFwOwn == FALSE)
 		return fgStatus;
 
-	DBGLOG(INIT, TRACE, "DRIVER OWN\n");
+	DBGLOG(INIT, INFO, "DRIVER OWN\n");
 
 	u4CurrTick = kalGetTimeTick();
 	i = 0;
@@ -207,12 +189,13 @@ BOOLEAN nicpmSetDriverOwn(IN P_ADAPTER_T prAdapter)
 				       "LP fail, Timeout(%ums) Bus Error[%u] Resetting[%u] NoAck[%u] Cnt[%u]",
 					kalGetTimeTick() - u4CurrTick, fgIsBusAccessFailed, kalIsResetting(),
 					wlanIsChipNoAck(prAdapter), prAdapter->u4OwnFailedCount);
-				/* polling cpupcr for debug */
-				wlanPollingCpupcr(4, 5);
+
 				prAdapter->u4OwnFailedLogCount++;
 				if (prAdapter->u4OwnFailedLogCount > LP_OWN_BACK_FAILED_RESET_CNT) {
 					/* Trigger RESET */
-					GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
+#if CFG_CHIP_RESET_SUPPORT
+					glResetTrigger(prAdapter);
+#endif
 				}
 				GET_CURRENT_SYSTIME(&prAdapter->rLastOwnFailedLogTime);
 			}
@@ -223,15 +206,15 @@ BOOLEAN nicpmSetDriverOwn(IN P_ADAPTER_T prAdapter)
 		}
 
 		if ((i & (LP_OWN_BACK_CLR_OWN_ITERATION - 1)) == 0) {
-			/* Driver request LP ownership - per 256 iterations */
+			/* Software get LP ownership - per 256 iterations */
 			HAL_MCR_WR(prAdapter, MCR_WHLPCR, WHLPCR_FW_OWN_REQ_CLR);
 		}
 
 		/* Delay for LP engine to complete its operation. */
-		kalUsleep_range(LP_OWN_BACK_LOOP_DELAY_MIN_US, LP_OWN_BACK_LOOP_DELAY_MAX_US);
+		kalMsleep(LP_OWN_BACK_LOOP_DELAY_MS);
 		i++;
 	}
-	DBGLOG(NIC, INFO, "DRIVER OWN, status=%d count=%d\n", fgStatus, i);
+	DBGLOG(NIC, INFO, "DRIVER OWN, status=%d\n", fgStatus);
 
 	return fgStatus;
 }
@@ -273,6 +256,7 @@ BOOLEAN nicpmSetAcpiPowerD0(IN P_ADAPTER_T prAdapter)
 		prAdapter->rAcpiState = ACPI_STATE_D0;
 		prAdapter->fgIsEnterD3ReqIssued = FALSE;
 
+#if defined(MT6630) || defined(MT6797)
 		/* 1. Request Ownership to enter F/W download state */
 		ACQUIRE_POWER_CONTROL_FROM_PM(prAdapter);
 #if !CFG_ENABLE_FULL_PM
@@ -285,6 +269,7 @@ BOOLEAN nicpmSetAcpiPowerD0(IN P_ADAPTER_T prAdapter)
 			u4Status = WLAN_STATUS_FAILURE;
 			break;
 		}
+#endif
 
 #if CFG_ENABLE_FW_DOWNLOAD
 		prFwMappingHandle = kalFirmwareImageMapping(prAdapter->prGlueInfo, &pvFwImageMapFile, &u4FwImgLength);
@@ -292,7 +277,7 @@ BOOLEAN nicpmSetAcpiPowerD0(IN P_ADAPTER_T prAdapter)
 			DBGLOG(NIC, ERROR, "Fail to load FW image from file!\n");
 			pvFwImageMapFile = NULL;
 		}
-
+#if defined(MT6630) || defined(MT6797)
 		if (pvFwImageMapFile) {
 			/* 3.1 disable interrupt, download is done by polling mode only */
 			nicDisableInterrupt(prAdapter);
@@ -322,11 +307,12 @@ BOOLEAN nicpmSetAcpiPowerD0(IN P_ADAPTER_T prAdapter)
 #endif
 			{
 				if (wlanImageSectionConfig(prAdapter,
-							   u4FwLoadAddr,
-							   u4FwImgLength,
-							   TRUE,
-							   TRUE,
-							   0) != WLAN_STATUS_SUCCESS) {
+							   u4FwLoadAddr, u4FwImgLength, TRUE
+#if defined(MT6797)
+							    , TRUE
+							    , 0
+#endif
+					) != WLAN_STATUS_SUCCESS) {
 					DBGLOG(INIT, ERROR, "Firmware download configuration failed!\n");
 
 					u4Status = WLAN_STATUS_FAILURE;
@@ -360,6 +346,7 @@ BOOLEAN nicpmSetAcpiPowerD0(IN P_ADAPTER_T prAdapter)
 		wlanConfigWifiFunc(prAdapter, TRUE, kalGetFwStartAddress(prAdapter->prGlueInfo));
 #else
 		wlanConfigWifiFunc(prAdapter, FALSE, 0);
+#endif
 #endif
 #endif
 

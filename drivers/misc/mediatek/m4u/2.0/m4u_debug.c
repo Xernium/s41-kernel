@@ -543,17 +543,11 @@ static int m4u_debug_set(void *data, u64 val)
 		m4u_dump_pfh_tlb(0);
 		break;
 	case 18:
-	{
-		if (TOTAL_M4U_NUM > 1)
-			m4u_dump_main_tlb(1, 0);
+		m4u_dump_main_tlb(1, 0);
 		break;
-	}
 	case 19:
-	{
-		if (TOTAL_M4U_NUM > 1)
-			m4u_dump_pfh_tlb(1);
+		m4u_dump_pfh_tlb(1);
 		break;
-	}
 	case 20:
 	{
 		M4U_PORT_STRUCT rM4uPort;
@@ -592,10 +586,6 @@ static int m4u_debug_set(void *data, u64 val)
 		unsigned int *pSrc;
 
 		pSrc = vmalloc(128);
-		if (!pSrc) {
-			M4UMSG("vmalloc failed!\n");
-			return 0;
-		}
 		memset(pSrc, 55, 128);
 		m4u_cache_sync(NULL, 0, 0, 0, 0, M4U_CACHE_FLUSH_ALL);
 

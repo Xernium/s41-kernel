@@ -1,3 +1,16 @@
+/*
+* Copyright (C) Onsemi Co.,Ltd. All rights reserved.
+
+* This software is licensed under the terms of the GNU General Public
+* License version 2, as published by the Free Software Foundation, and
+* may be copied, distributed, and modified under those terms.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
 /* ******************************************************************************** */
 /*  */
 /* LC89821x Initialize Data Table */
@@ -9,6 +22,9 @@
 
 #define	WAIT				0xFF	/* Wait command */
 
+/*----------------------------------------------------------
+		Initial data table
+-----------------------------------------------------------*/
 struct INIDATA {
 	unsigned short addr;
 	unsigned short data;
@@ -40,7 +56,7 @@ const struct INIDATA Init_Table_TVC820[] = {
 	{0x0085, 0xC0},
 	{WAIT, 1},		/* Wait 1 ms */
 
-	{0x0085, 0x00},
+        {0x0085, 0x00},
 	{0x0084, 0xE3},
 	{0x0097, 0x00},
 	{0x0098, 0x42},

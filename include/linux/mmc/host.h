@@ -16,7 +16,6 @@
 #include <linux/sched.h>
 #include <linux/device.h>
 #include <linux/fault-inject.h>
-#include <linux/blkdev.h>
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -444,11 +443,6 @@ struct mmc_host {
 		struct sdio_embedded_func	*funcs;
 		int				num_funcs;
 	} embedded_sdio_data;
-#endif
-
-#ifdef CONFIG_BLOCK
-	int			latency_hist_enabled;
-	struct io_latency_state io_lat_s;
 #endif
 
 	unsigned long		private[0] ____cacheline_aligned;

@@ -21,12 +21,6 @@
 #include <linux/rtmutex.h>
 #include <linux/interrupt.h>
 
-#define rt_dbg(dev, fmt, ...) \
-	do { \
-		if (dbg_log_en) \
-			dev_dbg(dev, fmt, ##__VA_ARGS__); \
-	} while (0)
-
 enum {
 	RT5081_PMU_COREDEV,
 	RT5081_PMU_CHGDEV,
@@ -286,4 +280,5 @@ extern int rt5081_pmu_subdevs_register(struct rt5081_pmu_chip *chip);
 extern void rt5081_pmu_subdevs_unregister(struct rt5081_pmu_chip *chip);
 /* extern function from other files end */
 
+extern bool cei_id_check(struct rt5081_pmu_chip *chip);
 #endif /* #ifndef __LINUX_MFD_RT5081_PMU_H */

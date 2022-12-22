@@ -26,7 +26,7 @@
 #include <linux/mmc/sdio.h>
 #include <mt-plat/mtk_chip.h>
 
-#define AUTOK_VERSION                   (0x17050318)
+#define AUTOK_VERSION                   (0x16121915)
 struct msdc_host;
 
 #define E_RESULT_PASS     (0)
@@ -66,13 +66,13 @@ extern unsigned int autok_debug_level;
 #define AUTOK_DBGPRINT(_level, _fmt ...)   \
 ({                                         \
 	if (autok_debug_level >= _level) { \
-		pr_debug(_fmt);              \
+		pr_err(_fmt);              \
 	}                                  \
 })
 
 #define AUTOK_RAWPRINT(_fmt ...)           \
 ({                                         \
-	pr_debug(_fmt);                      \
+	pr_err(_fmt);                      \
 })
 
 enum ERROR_TYPE {

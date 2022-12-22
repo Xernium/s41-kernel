@@ -93,23 +93,23 @@ extern void upmu_set_vcn33_on_ctrl_wifi(UINT_32 val);
 ** layer info structure.
  */
 typedef struct _GL_HIF_DMA_OPS_T {	/* DMA Operators */
-	void (*DmaConfig)(IN PVOID HifInfo, IN PVOID Conf);
+	VOID (*DmaConfig)(IN VOID *HifInfo, IN VOID *Conf);
 
-	void (*DmaStart)(IN PVOID HifInfo);
+	VOID (*DmaStart)(IN VOID *HifInfo);
 
-	void (*DmaStop)(IN PVOID HifInfo);
+	VOID (*DmaStop)(IN VOID *HifInfo);
 
-	INT32 (*DmaPollStart)(IN PVOID HifInfo);
+	INT32 (*DmaPollStart)(IN VOID *HifInfo);
 
-	INT32 (*DmaPollIntr)(IN PVOID HifInfo);
+	INT32 (*DmaPollIntr)(IN VOID *HifInfo);
 
-	void (*DmaAckIntr)(IN PVOID HifInfo);
+	VOID (*DmaAckIntr)(IN VOID *HifInfo);
 
-	void (*DmaClockCtrl)(IN UINT_32 FlgIsEnabled);
+	VOID (*DmaClockCtrl)(IN UINT_32 FlgIsEnabled);
 
-	void (*DmaRegDump)(IN PVOID HifInfo);
+	VOID (*DmaRegDump)(IN VOID *HifInfo);
 
-	void (*DmaReset)(IN PVOID HifInfo);
+	VOID (*DmaReset)(IN VOID *HifInfo);
 
 } GL_HIF_DMA_OPS_T;
 
@@ -124,7 +124,7 @@ typedef struct _GL_HIF_INFO_T {
 #define MTK_CHIP_ID_8127    0x8127
 #define MTK_CHIP_ID_6752    0x6752
 #define MTK_CHIP_ID_8163    0x8163
-#define MTK_CHIP_ID_8167    0x8167
+#define MTK_CHIP_ID_8160    0x8160
 #define MTK_CHIP_ID_6735    0x6735
 #define MTK_CHIP_ID_6570    0x6570
 #define MTK_CHIP_ID_6580    0x6580
@@ -137,7 +137,6 @@ typedef struct _GL_HIF_INFO_T {
 	BOOLEAN fgIntReadClear;
 	BOOLEAN fgMbxReadClear;
 	BOOLEAN fgDmaEnable;	/* TRUE: DMA mode is used (default) */
-	BOOLEAN fgDmaUsleepEnable;	/* TRUE: While DMA pooling, usleep is used (default) */
 
 	/* HIF related */
 	UINT_8 *HifRegBaseAddr;	/* HIF register base */

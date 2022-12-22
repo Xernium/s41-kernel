@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
 
 #ifndef _DDP_REG_OVL_H_
 #define _DDP_REG_OVL_H_
@@ -125,14 +125,9 @@
 #define DISP_REG_OVL_L0_OFFSET					(0x03CUL)
 #define DISP_REG_OVL_L0_ADDR					(0xf40UL)
 #define DISP_REG_OVL_L0_PITCH					(0x044UL)
-	#define L_PITCH_FLD_SRC_PITCH				REG_FLD_MSB_LSB(15, 0)
-	#define L_PITCH_FLD_SA_SEL					REG_FLD_MSB_LSB(17, 16)
-	#define L_PITCH_FLD_SRGB_SEL				REG_FLD_MSB_LSB(19, 18)
-	#define L_PITCH_FLD_DA_SEL					REG_FLD_MSB_LSB(21, 20)
-	#define L_PITCH_FLD_DRGB_SEL				REG_FLD_MSB_LSB(23, 22)
+	#define L_PITCH_FLD_LSP					REG_FLD_MSB_LSB(15, 0)
+	#define L_PITCH_FLD_SUR_ALFA				REG_FLD_MSB_LSB(31, 16)
 	#define L_PITCH_FLD_CONST_BLD				REG_FLD_MSB_LSB(28, 28)
-	#define L_PITCH_FLD_BLEND_RND_SHT			REG_FLD_MSB_LSB(30, 30)
-	#define L_PITCH_FLD_SURFL_EN				REG_FLD_MSB_LSB(31, 31)
 
 #define DISP_REG_OVL_L0_TILE					(0x048UL)
 #define DISP_REG_OVL_L0_CLIP					(0x04CUL)

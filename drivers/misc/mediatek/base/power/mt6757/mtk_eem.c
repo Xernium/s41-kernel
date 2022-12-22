@@ -677,7 +677,7 @@ static struct hrtimer eem_log_timer;
 #endif
 
 /* Global variable for slow idle*/
-/* volatile unsigned int ptp_data[3] = {0, 0, 0}; */
+volatile unsigned int ptp_data[3] = {0, 0, 0};
 
 struct eem_det;
 struct eem_ctrl;
@@ -1548,7 +1548,7 @@ static int base_ops_mon_mode(struct eem_det *det)
 {
 	#if (!defined(EARLY_PORTING))
 	struct TS_PTPOD ts_info;
-	enum thermal_bank_name ts_bank;
+	thermal_bank_name ts_bank;
 	#endif
 
 	FUNC_ENTER(FUNC_LV_HELP);
@@ -1776,7 +1776,7 @@ static void base_ops_set_phase(struct eem_det *det, enum eem_phase phase)
 
 static int base_ops_get_temp(struct eem_det *det)
 {
-	enum thermal_bank_name ts_bank;
+	thermal_bank_name ts_bank;
 
 #if 1 /* TODO: FIXME */
 	FUNC_ENTER(FUNC_LV_HELP);
@@ -2727,21 +2727,40 @@ static void eem_restore_eem_volt(struct eem_det *det)
 	FUNC_EXIT(FUNC_LV_HELP);
 }
 
+#if 0
+static void mt_eem_reg_dump_locked(void)
+{
+#ifndef CONFIG_ARM64
+	unsigned int addr;
+
+	for (addr = (unsigned int)DESCHAR; addr <= (unsigned int)SMSTATE1; addr += 4)
+		eem_isr_info("0x%08X = 0x%08X\n", addr, *(volatile unsigned int *)addr);
+
+	addr = (unsigned int)EEMCORESEL;
+	eem_isr_info("0x%08X = 0x%08X\n", addr, *(volatile unsigned int *)addr);
+#else
+	unsigned long addr;
+
+	for (addr = (unsigned long)DESCHAR; addr <= (unsigned long)SMSTATE1; addr += 4)
+		eem_isr_info("0x %lu = 0x %lu\n", addr, *(volatile unsigned long *)addr);
+
+	addr = (unsigned long)EEMCORESEL;
+	eem_isr_info("0x %lu = 0x %lu\n", addr, *(volatile unsigned long *)addr);
+#endif
+}
+#endif
+
 static unsigned int interpolate(unsigned int y1, unsigned int y0,
 	unsigned int x1, unsigned int x0, unsigned int ym)
 {
 	unsigned int ratio, result;
 
-	if (x1 == x0) {
-		result = x1;
-	} else {
-		ratio = (((y1 - y0) * 100) + (x1 - x0 - 1)) / (x1 - x0);
-		result =  (x1 - ((((y1 - ym) * 10000) + ratio - 1) / ratio) / 100);
-		/*
-		* eem_debug("y1(%d), y0(%d), x1(%d), x0(%d), ym(%d), ratio(%d), rtn(%d)\n",
-		*	y1, y0, x1, x0, ym, ratio, result);
-		*/
-	}
+	ratio = (((y1 - y0) * 100) + (x1 - x0 - 1)) / (x1 - x0);
+	result =  (x1 - ((((y1 - ym) * 10000) + ratio - 1) / ratio) / 100);
+	/*
+	* eem_debug("y1(%d), y0(%d), x1(%d), x0(%d), ym(%d), ratio(%d), rtn(%d)\n",
+	*	y1, y0, x1, x0, ym, ratio, result);
+	*/
 
 	return result;
 }
@@ -4019,15 +4038,15 @@ void get_devinfo(struct eem_devinfo *p)
 		val[7] = get_devinfo_with_index(57);
 		val[8] = get_devinfo_with_index(58);
 #if defined(CONFIG_EEM_AEE_RR_REC)
-		aee_rr_rec_ptp_e0((unsigned int)val[0]);
-		aee_rr_rec_ptp_e1((unsigned int)val[1]);
-		aee_rr_rec_ptp_e2((unsigned int)val[2]);
-		aee_rr_rec_ptp_e3((unsigned int)val[3]);
-		aee_rr_rec_ptp_e4((unsigned int)val[4]);
-		aee_rr_rec_ptp_e5((unsigned int)val[5]);
-		aee_rr_rec_ptp_e6((unsigned int)val[6]);
-		aee_rr_rec_ptp_e7((unsigned int)val[7]);
-		aee_rr_rec_ptp_e8((unsigned int)val[8]);
+		aee_rr_rec_ptp_60((unsigned int)val[0]);
+		aee_rr_rec_ptp_64((unsigned int)val[1]);
+		aee_rr_rec_ptp_68((unsigned int)val[2]);
+		aee_rr_rec_ptp_6C((unsigned int)val[3]);
+		aee_rr_rec_ptp_78((unsigned int)val[4]);
+		aee_rr_rec_ptp_7C((unsigned int)val[5]);
+		aee_rr_rec_ptp_80((unsigned int)val[6]);
+		aee_rr_rec_ptp_84((unsigned int)val[7]);
+		aee_rr_rec_ptp_88((unsigned int)val[8]);
 #endif
 
 	#else
@@ -4315,7 +4334,7 @@ static int eem_probe(struct platform_device *pdev)
 #endif
 
 	/* for slow idle */
-	/* ptp_data[0] = 0xffffffff; */
+	ptp_data[0] = 0xffffffff;
 
 	for_each_det(det)
 		eem_init_det(det, &eem_devinfo);
@@ -4327,7 +4346,7 @@ static int eem_probe(struct platform_device *pdev)
 #endif
 	eem_init01();
 #endif
-	/* ptp_data[0] = 0; */
+	ptp_data[0] = 0;
 
 #if (defined(__KERNEL__) && !defined(EARLY_PORTING))
 	/*
@@ -4901,7 +4920,7 @@ static ssize_t eem_cur_volt_proc_write(struct file *file,
 				det->VMIN + EEM_PMIC_OFFSET,
 				det->VMAX + EEM_PMIC_OFFSET);
 
-			tmpSramPmic = voltProc + VSRAM_GAP + AP_PMIC_TO_SRAM_OFFSET;
+			tmpSramPmic = record_tbl_locked[i] + VSRAM_GAP + AP_PMIC_TO_SRAM_OFFSET;
 			if (tmpSramPmic < 0)
 				tmpSramPmic = 0;
 

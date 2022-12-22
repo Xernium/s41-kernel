@@ -255,28 +255,28 @@ static int PMIC_CLK_BUF9_DRIVING_CURR = CLK_BUF_DRIVING_CURR_2,
 #endif /* CONFIG_MTK_LEGACY */
 
 #ifndef CLKBUF_BRINGUP
-static enum CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl[CLKBUF_NUM] = {
+static CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE,
-	CLK_BUF_SW_ENABLE,
+	CLK_BUF_SW_DISABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_DISABLE
 };
 
-static enum CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl_modem_on[CLKBUF_NUM] = {
+static CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl_modem_on[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE,
-	CLK_BUF_SW_ENABLE,
+	CLK_BUF_SW_DISABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE
 };
 #else /* For Bring-up */
-static enum CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl[CLKBUF_NUM] = {
+static CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE
 };
 
-static enum CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl_modem_on[CLKBUF_NUM] = {
+static CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl_modem_on[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
@@ -284,7 +284,7 @@ static enum CLK_BUF_SWCTRL_STATUS_T  clk_buf_swctrl_modem_on[CLKBUF_NUM] = {
 };
 #endif
 
-static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
+static CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE
 	, CLK_BUF_SW_ENABLE
 	, CLK_BUF_SW_ENABLE
@@ -297,7 +297,7 @@ static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
 
 };
 
-static void spm_clk_buf_ctrl(enum CLK_BUF_SWCTRL_STATUS_T *status)
+static void spm_clk_buf_ctrl(CLK_BUF_SWCTRL_STATUS_T *status)
 {
 	u32 spm_val;
 	int i;
@@ -312,7 +312,7 @@ static void spm_clk_buf_ctrl(enum CLK_BUF_SWCTRL_STATUS_T *status)
 	udelay(2);
 }
 
-static void pmic_clk_buf_ctrl(enum CLK_BUF_SWCTRL_STATUS_T *status)
+static void pmic_clk_buf_ctrl(CLK_BUF_SWCTRL_STATUS_T *status)
 {
 #if !defined(CONFIG_MTK_PMIC_CHIP_MT6355)
 	u32 conn_conf = 0, nfc_conf = 0;
@@ -578,7 +578,7 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 	return true;
 }
 
-void clk_buf_get_swctrl_status(enum CLK_BUF_SWCTRL_STATUS_T *status)
+void clk_buf_get_swctrl_status(CLK_BUF_SWCTRL_STATUS_T *status)
 {
 	int i;
 
@@ -609,16 +609,16 @@ void clk_buf_get_rf_drv_curr(void *rf_drv_curr)
 	RF_CLK_BUF4_DRIVING_CURR = CLK_BUF_DRIVING_CURR_0_9MA;
 #endif
 
-	((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[0] = RF_CLK_BUF1_DRIVING_CURR;
-	((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[1] = RF_CLK_BUF2_DRIVING_CURR;
-	((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[2] = RF_CLK_BUF3_DRIVING_CURR;
-	((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[3] = RF_CLK_BUF4_DRIVING_CURR;
+	((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[0] = RF_CLK_BUF1_DRIVING_CURR;
+	((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[1] = RF_CLK_BUF2_DRIVING_CURR;
+	((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[2] = RF_CLK_BUF3_DRIVING_CURR;
+	((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[3] = RF_CLK_BUF4_DRIVING_CURR;
 
 	clk_buf_warn("%s: rf_drv_curr_vals=%d %d %d %d\n", __func__,
-		     ((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[0],
-		     ((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[1],
-		     ((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[2],
-		     ((enum MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[3]);
+		     ((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[0],
+		     ((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[1],
+		     ((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[2],
+		     ((MTK_CLK_BUF_DRIVING_CURR *)rf_drv_curr)[3]);
 }
 
 /* Called by ccci driver to keep afcdac value sent from modem */
@@ -917,8 +917,8 @@ static ssize_t clk_buf_ctrl_show(struct kobject *kobj, struct kobj_attribute *at
 			"buf2/3/4 mode = 0x%x/0x%x/0x%x, buf2/3/4 status =%d/%d/%d\n",
 		     buf2_mode, buf3_mode, buf4_mode, buf2_status, buf3_status, buf4_status);
 		/*
-		* p += sprintf(p, "rg_xo_reserved0_0=%d, ,buf2_en_m=%d, buf3_en_m=%d, buf4_en_m=%d\n",
-		*     rg_xo_reserved0_0, buf2_en_m, buf3_en_m, buf4_en_m);
+		p += sprintf(p, "rg_xo_reserved0_0=%d, ,buf2_en_m=%d, buf3_en_m=%d, buf4_en_m=%d\n",
+		     rg_xo_reserved0_0, buf2_en_m, buf3_en_m, buf4_en_m);
 		*/
 		len += snprintf(buf+len, PAGE_SIZE-len,
 			"buf24_en=%d srcclkena_o1=%d\n",
@@ -1137,14 +1137,6 @@ static void clk_buf_pmic_wrap_init(void)
 
 	g_pmic_cw00_rg_val = MT6355_PMIC_CW00_INIT_VAL;
 
-	if (CLK_BUF6_STATUS_PMIC == CLOCK_BUFFER_DISABLE) {
-		g_pmic_cw00_rg_val = g_pmic_cw00_rg_val &
-			~(PMIC_XO_EXTBUF2_MODE_MASK << PMIC_XO_EXTBUF2_MODE_SHIFT); /*clkbuf2 mode = 00*/
-
-		g_pmic_cw00_rg_val = g_pmic_cw00_rg_val &
-			~(PMIC_XO_EXTBUF2_EN_M_MASK << PMIC_XO_EXTBUF2_EN_M_SHIFT); /*clkbuf2 en_m = 0*/
-	}
-
 #ifdef DISABLE_PMIC_CLKBUF3
 		g_pmic_cw00_rg_val = g_pmic_cw00_rg_val &
 			~(PMIC_XO_EXTBUF3_MODE_MASK << PMIC_XO_EXTBUF3_MODE_SHIFT); /*clkbuf3 mode = 00*/
@@ -1182,16 +1174,14 @@ static void clk_buf_pmic_wrap_init(void)
 		     __func__, pmic_cw00, pmic_cw11, pmic_cw14, pmic_cw16);
 
 		/* Setup PMIC_WRAP setting for XO2 & XO3 */
-		if (CLK_BUF6_STATUS_PMIC != CLOCK_BUFFER_DISABLE) {
-			clkbuf_writel(DCXO_CONN_ADR0, MT6355_DCXO_CW00_CLR);
-			clkbuf_writel(DCXO_CONN_WDATA0,
-				PMIC_XO_EXTBUF2_EN_M_MASK << PMIC_XO_EXTBUF2_EN_M_SHIFT);	/* bit5 = 0 */
-			clkbuf_writel(DCXO_CONN_ADR1, MT6355_DCXO_CW00_SET);
-			clkbuf_writel(DCXO_CONN_WDATA1,
-				PMIC_XO_EXTBUF2_EN_M_MASK << PMIC_XO_EXTBUF2_EN_M_SHIFT);	/* bit5 = 1 */
+		clkbuf_writel(DCXO_CONN_ADR0, MT6355_DCXO_CW00_CLR);
+		clkbuf_writel(DCXO_CONN_WDATA0,
+		      PMIC_XO_EXTBUF2_EN_M_MASK << PMIC_XO_EXTBUF2_EN_M_SHIFT);	/* bit5 = 0 */
+		clkbuf_writel(DCXO_CONN_ADR1, MT6355_DCXO_CW00_SET);
+		clkbuf_writel(DCXO_CONN_WDATA1,
+		      PMIC_XO_EXTBUF2_EN_M_MASK << PMIC_XO_EXTBUF2_EN_M_SHIFT);	/* bit5 = 1 */
 
-			clkbuf_writel(DCXO_ENABLE, clkbuf_readl(DCXO_ENABLE) | DCXO_CONN_ENABLE);
-		}
+		clkbuf_writel(DCXO_ENABLE, clkbuf_readl(DCXO_ENABLE) | DCXO_CONN_ENABLE);
 
 #if !defined(DISABLE_PMIC_CLKBUF3)
 		clkbuf_writel(DCXO_NFC_ADR0, MT6355_DCXO_CW00_CLR);
@@ -1257,22 +1247,11 @@ static void clk_buf_pmic_wrap_init(void)
 
 	g_pmic_cw00_rg_val = PMIC_CW00_INIT_VAL;
 
-	if (CLK_BUF6_STATUS_PMIC == CLOCK_BUFFER_DISABLE) {
-		pmic_config_interface(PMIC_CW00_ADDR, 0,
-			PMIC_CW00_XO_EXTBUF2_EN_M_MASK,
-			PMIC_CW00_XO_EXTBUF2_EN_M_SHIFT);
-		g_pmic_cw00_rg_val = g_pmic_cw00_rg_val &
-			~(PMIC_CW00_XO_EXTBUF2_MODE_MASK << PMIC_CW00_XO_EXTBUF2_MODE_SHIFT);
-		pmic_config_interface(PMIC_CW00_ADDR, 0,
-			PMIC_CW00_XO_EXTBUF2_MODE_MASK,
-			PMIC_CW00_XO_EXTBUF2_MODE_SHIFT);
-	}
-
 #ifdef DISABLE_PMIC_CLKBUF3
 	pmic_config_interface(PMIC_CW14_ADDR, 0,
 		PMIC_CW14_XO_EXTBUF3_EN_M_MASK,
 		PMIC_CW14_XO_EXTBUF3_EN_M_SHIFT);
-	g_pmic_cw00_rg_val = g_pmic_cw00_rg_val &
+	g_pmic_cw00_rg_val = PMIC_CW00_INIT_VAL &
 		~(PMIC_CW00_XO_EXTBUF3_MODE_MASK << PMIC_CW00_XO_EXTBUF3_MODE_SHIFT);
 	pmic_config_interface(PMIC_CW00_ADDR, 0,
 		PMIC_CW00_XO_EXTBUF3_MODE_MASK,
@@ -1304,12 +1283,11 @@ static void clk_buf_pmic_wrap_init(void)
 	clk_buf_warn("%s PMIC_CW00_ADDR=0x%x, PMIC_CW14_ADDR=0x%x, PMIC_CW13_ADDR=0x%x\n",
 		     __func__, conn_conf, nfc_conf, pmic_cw13);
 
-	if (CLK_BUF6_STATUS_PMIC != CLOCK_BUFFER_DISABLE) {
-		clkbuf_writel(DCXO_CONN_ADR0, PMIC_CW00_ADDR);
-		clkbuf_writel(DCXO_CONN_WDATA0, conn_conf & 0xFFDF);	/* bit5 = 0 */
-		clkbuf_writel(DCXO_CONN_ADR1, PMIC_CW00_ADDR);
-		clkbuf_writel(DCXO_CONN_WDATA1, conn_conf | 0x0020);	/* bit5 = 1 */
-	}
+
+	clkbuf_writel(DCXO_CONN_ADR0, PMIC_CW00_ADDR);
+	clkbuf_writel(DCXO_CONN_WDATA0, conn_conf & 0xFFDF);	/* bit5 = 0 */
+	clkbuf_writel(DCXO_CONN_ADR1, PMIC_CW00_ADDR);
+	clkbuf_writel(DCXO_CONN_WDATA1, conn_conf | 0x0020);	/* bit5 = 1 */
 #ifdef DISABLE_PMIC_CLKBUF3
 #else
 	clkbuf_writel(DCXO_NFC_ADR0, PMIC_CW14_ADDR);
@@ -1322,13 +1300,9 @@ static void clk_buf_pmic_wrap_init(void)
 	clkbuf_writel(HARB_SLEEP_GATED_CTRL, HARB_SLEEP_GATED_EN);
 
 #ifdef DISABLE_PMIC_CLKBUF3
-	if (CLK_BUF6_STATUS_PMIC != CLOCK_BUFFER_DISABLE)
-		clkbuf_writel(DCXO_ENABLE, DCXO_CONN_ENABLE);
+	clkbuf_writel(DCXO_ENABLE, DCXO_CONN_ENABLE);
 #else
-	if (CLK_BUF6_STATUS_PMIC != CLOCK_BUFFER_DISABLE)
-		clkbuf_writel(DCXO_ENABLE, DCXO_CONN_ENABLE | DCXO_NFC_ENABLE);
-	else
-		clkbuf_writel(DCXO_ENABLE, DCXO_NFC_ENABLE);
+	clkbuf_writel(DCXO_ENABLE, DCXO_CONN_ENABLE | DCXO_NFC_ENABLE);
 #endif
 
 	clk_buf_warn("%s: DCXO_CONN_ADR0/WDATA0/ADR1/WDATA1/EN=0x%x/%x/%x/%x/%x,HSGC=%x\n",
@@ -1371,6 +1345,10 @@ static void clk_buf_clear_rf_setting(void)
 	CLK_BUF2_STATUS = CLOCK_BUFFER_DISABLE;
 	CLK_BUF3_STATUS = CLOCK_BUFFER_DISABLE;
 	CLK_BUF4_STATUS = CLOCK_BUFFER_DISABLE;
+	CLK_BUF5_STATUS_PMIC = CLOCK_BUFFER_HW_CONTROL;
+	CLK_BUF6_STATUS_PMIC = CLOCK_BUFFER_SW_CONTROL;
+	CLK_BUF7_STATUS_PMIC = CLOCK_BUFFER_SW_CONTROL;
+	CLK_BUF8_STATUS_PMIC = CLOCK_BUFFER_HW_CONTROL;
 
 	clk_buf_warn("%s: RF_CLK_BUF?_STATUS=%d %d %d %d\n", __func__,
 		     CLK_BUF1_STATUS, CLK_BUF2_STATUS,
@@ -1469,23 +1447,7 @@ bool clk_buf_init(void)
 	} else { /* VCTCXO @RF */
 		is_pmic_clkbuf = false;
 
-		if (CLK_BUF2_STATUS == CLOCK_BUFFER_DISABLE) {
-			clk_buf_swctrl_modem_on[CLK_BUF_CONN] = CLK_BUF_SW_DISABLE;
-			clk_buf_swctrl[CLK_BUF_CONN] = CLK_BUF_SW_DISABLE;
-		}
-
-		if (CLK_BUF3_STATUS == CLOCK_BUFFER_DISABLE) {
-			clk_buf_swctrl_modem_on[CLK_BUF_NFC] = CLK_BUF_SW_DISABLE;
-			clk_buf_swctrl[CLK_BUF_NFC] = CLK_BUF_SW_DISABLE;
-		}
-
 		clk_buf_pmic_wrap_init();
-
-		if (g_is_flightmode_on)
-			spm_clk_buf_ctrl(clk_buf_swctrl);
-		else
-			spm_clk_buf_ctrl(clk_buf_swctrl_modem_on);
-
 		spm_write(SPM_BSI_EN_SR, afcdac_val);
 		clk_buf_warn("%s: afcdac=0x%x, SPM_BSI_EN_SR=0x%x\n", __func__,
 			     afcdac_val, spm_read(SPM_BSI_EN_SR));
